@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Musical - Prueba</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #response {
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>1. Registro de Usuario</h2>
+        <form id="registerForm">
+            <div class="form-group">
+                <label>Usuario:</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="email" required>
+            </div>
+            <div class="form-group">
+                <label>Contraseña:</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit">Registrar</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>2. Subir Beat</h2>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label>Título:</label>
+                <input type="text" id="titulo" required>
+            </div>
+            <div class="form-group">
+                <label>Artista:</label>
+                <input type="text" id="artista" required>
+            </div>
+            <div class="form-group">
+                <label>Género:</label>
+                <select id="genero" required>
+                    <option value="trap">Trap</option>
+                    <option value="reggaeton">Reggaeton</option>
+                    <option value="pop">Pop</option>
+                    <option value="rap">Rap</option>
+                    <option value="rock">Rock</option>
+                    <option value="electronica">Electrónica</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Archivo de Audio:</label>
+                <input type="file" id="archivo" accept="audio/*" required>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="freeUse">
+                    Uso libre (free use)
+                </label>
+            </div>
+            <div class="form-group">
+                <label>Contacto (Instagram/Email):</label>
+                <input type="text" id="contacto" required>
+            </div>
+            <button type="submit">Subir Beat</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Respuesta:</h2>
+        <div id="response"></div>
+    </div>
+
+    <script>
+        let token = '';
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value
+                    })
+                });
+                const data = await response.json();
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+                
+                // Obtener token automáticamente después del registro
+                const tokenResponse = await fetch('/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams({
+                        'username': document.getElementById('username').value,
+                        'password': document.getElementById('password').value
+                    })
+                });
+                const tokenData = await tokenResponse.json();
+                token = tokenData.access_token;
+                document.getElementById('response').textContent += '\n\nToken obtenido exitosamente!';
+            } catch (error) {
+                document.getElementById('response').textContent = 'Error: ' + error.message;
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!token) {
+                document.getElementById('response').textContent = 'Por favor, regístrate primero';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('titulo', document.getElementById('titulo').value);
+            formData.append('artista', document.getElementById('artista').value);
+            formData.append('categoria', 'beat');
+            formData.append('genero_musical', document.getElementById('genero').value);
+            formData.append('archivo', document.getElementById('archivo').files[0]);
+            formData.append('free_use', document.getElementById('freeUse').checked ? '1' : '0');
+            formData.append('contacto', document.getElementById('contacto').value);
+
+            try {
+                const response = await fetch('/subir-audio/', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+                const data = await response.json();
+                document.getElementById('response').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('response').textContent = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html> 

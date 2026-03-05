@@ -1,0 +1,31 @@
+# Entornos Virtuales y Dependencias
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.venv/
+node_modules/
+.expo/
+.dart_tool/
+.pub-cache/
+build/
+
+# Bases de Datos locales
+*.db
+*.sqlite3
+musica.db
+
+# Subidas de Usuario y Archivos Estáticos locales
+backend/uploads/
+backend/static/
+musicdy_app/build/
+musicdy_rn/dist/
+
+# IDE y OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
