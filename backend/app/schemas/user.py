@@ -25,6 +25,7 @@ class UserCreate(UserBase):
             raise ValueError("La contraseña debe tener al menos un carácter especial.")
         return v
 
+class UserUpdate(BaseModel):
     password: Optional[str] = None
     email: Optional[EmailStr] = None
     bio: Optional[str] = None
