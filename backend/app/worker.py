@@ -1,8 +1,6 @@
 from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.models.models import Publicacion
-import librosa
-import numpy as np
 import os
 
 import subprocess
@@ -11,6 +9,8 @@ UPLOAD_DIR = "uploads"
 
 @celery_app.task(acks_late=True)
 def process_audio(publicacion_id: int, file_path: str):
+    import librosa
+    import numpy as np
     db = SessionLocal()
     try:
         # Create previews directory
