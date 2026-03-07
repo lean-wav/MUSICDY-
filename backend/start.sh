@@ -1,19 +1,13 @@
 #!/bin/bash
 
-# Wait for DB to be ready
-echo "Waiting for postgres..."
-while ! nc -z db 5432; do
-  sleep 0.1
-done
-echo "PostgreSQL started"
-
-# Run migrations
+# Generar migraciones automáticamente si es necesario (sin bloquear la app)
 echo "Running database migrations..."
-alembic upgrade head
+alembic upgrade head || true
 
-# Start Gunicorn
-echo "Starting Gunicorn..."
+# Start Gunicorn usando el puerto dinámico de Render/Railway
+PORT="${PORT:-8000}"
+echo "Starting Gunicorn on port $PORT..."
 exec gunicorn app.main:app \
     --workers 4 \
     --worker-class uvicorn.workers.UvicornWorker \
-    --bind 0.0.0.0:8000
+    --bind 0.0.0.0:$PORT
