@@ -28,9 +28,6 @@ def login_access_token(
     
     if not user or not security.verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
-
-    if not getattr(user, "is_verified", True):
-        raise HTTPException(status_code=403, detail="Revisa tu correo electrónico para verificar tu cuenta")
         
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {

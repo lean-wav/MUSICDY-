@@ -40,12 +40,6 @@ def create_user(
     
     hashed_password = security.get_password_hash(user_in.password)
     
-    # Generate Verification Token
-    verification_token = security.create_access_token(
-        subject=user_in.email, 
-        expires_delta=timedelta(hours=24)
-    )
-
     db_user = Usuario(
         username=user_in.username,
         email=user_in.email,
@@ -56,19 +50,12 @@ def create_user(
         provider=user_in.provider,
         provider_id=user_in.provider_id,
         birthdate=user_in.birthdate,
-        is_verified=False,
-        account_status="pending"
+        is_verified=True,
+        account_status="active"
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    
-    background_tasks.add_task(
-        send_verification_email, 
-        user_email=db_user.email, 
-        username=db_user.username, 
-        verification_token=verification_token
-    )
 
     return db_user
 
