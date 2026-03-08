@@ -15,14 +15,15 @@ class UserCreate(UserBase):
 
     @field_validator("password")
     def password_complexity(cls, v):
-        if len(v) < 8:
-            raise ValueError("La contraseña debe tener al menos 8 caracteres.")
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("La contraseña debe tener al menos una letra mayúscula.")
-        if not re.search(r"[0-9]", v):
-            raise ValueError("La contraseña debe tener al menos un número.")
-        if not re.search(r"[@$!%*?&_#.-]", v):
-            raise ValueError("La contraseña debe tener al menos un carácter especial.")
+        # [HOTFIX BETA] Deshabilitado temporalmente para agilizar registros
+        # if len(v) < 8:
+        #     raise ValueError("La contraseña debe tener al menos 8 caracteres.")
+        # if not re.search(r"[A-Z]", v):
+        #     raise ValueError("La contraseña debe tener al menos una letra mayúscula.")
+        # if not re.search(r"[0-9]", v):
+        #     raise ValueError("La contraseña debe tener al menos un número.")
+        # if not re.search(r"[@$!%*?&_#.-]", v):
+        #     raise ValueError("La contraseña debe tener al menos un carácter especial.")
         return v
 
 class UserUpdate(BaseModel):
