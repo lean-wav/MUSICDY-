@@ -25,37 +25,51 @@ def create_user(
     """
     Create new user.
     """
-    if db.query(Usuario).filter(Usuario.email == user_in.email).first():
-        raise HTTPException(
-            status_code=400,
-            detail="The user with this username already exists in the system.",
-        )
-    if db.query(Usuario).filter(Usuario.username == user_in.username).first():
-        raise HTTPException(
-            status_code=400,
-            detail="The username is already in use.",
-        )
+    import logging
+    logger = logging.getLogger(__name__)
     
-    hashed_password = security.get_password_hash(user_in.password)
-    
-    db_user = Usuario(
-        username=user_in.username,
-        email=user_in.email,
-        password_hash=hashed_password,
-        foto_perfil="default.jpg",
-        bio="",
-        tipo_usuario=user_in.tipo_usuario,
-        provider=user_in.provider,
-        provider_id=user_in.provider_id,
-        birthdate=user_in.birthdate,
-        is_verified=True,
-        account_status="active"
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+    try:
+        if db.query(Usuario).filter(Usuario.email == user_in.email).first():
+            raise HTTPException(
+                status_code=400,
+                detail="The user with this username already exists in the system.",
+            )
+        if db.query(Usuario).filter(Usuario.username == user_in.username).first():
+            raise HTTPException(
+                status_code=400,
+                detail="The username is already in use.",
+            )
+        
+        hashed_password = security.get_password_hash(user_in.password)
+        
+        db_user = Usuario(
+            username=user_in.username,
+            email=user_in.email,
+            password_hash=hashed_password,
+            foto_perfil="default.jpg",
+            bio="",
+            tipo_usuario=user_in.tipo_usuario,
+            provider=user_in.provider,
+            provider_id=user_in.provider_id,
+            birthdate=user_in.birthdate,
+            is_verified=True,
+            account_status="active"
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
 
-    return db_user
+        return db_user
+    except HTTPException:
+        # Re-raise standard HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error 500 in create_user: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor al crear cuenta. Revisa los logs de Render."
+        )
 
 @router.get("/verify-email", response_class=HTMLResponse)
 def verify_email(token: str, db: Session = Depends(deps.get_db)) -> Any:

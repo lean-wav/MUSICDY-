@@ -11,7 +11,7 @@ class UserCreate(UserBase):
     provider: Optional[str] = "email"
     provider_id: Optional[str] = None
     birthdate: Optional[str] = None
-    tipo_usuario: Optional[str] = "Oyente"
+    tipo_usuario: Optional[str] = "General"
 
     @field_validator("password")
     def password_complexity(cls, v):

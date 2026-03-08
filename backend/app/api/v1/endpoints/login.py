@@ -18,24 +18,36 @@ def login_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests
     """
-    from sqlalchemy import or_
-    user = db.query(Usuario).filter(
-        or_(
-            Usuario.username == form_data.username,
-            Usuario.email == form_data.username
-        )
-    ).first()
-    
-    if not user or not security.verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from sqlalchemy import or_
+        user = db.query(Usuario).filter(
+            or_(
+                Usuario.username == form_data.username,
+                Usuario.email == form_data.username
+            )
+        ).first()
         
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires
-        ),
-        "token_type": "bearer",
-    }
+        if not user or not security.verify_password(form_data.password, user.password_hash):
+            raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
+            
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        return {
+            "access_token": security.create_access_token(
+                user.id, expires_delta=access_token_expires
+            ),
+            "token_type": "bearer",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error 500 in login_access_token: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor al iniciar sesión. Revisa los logs de Render."
+        )
 
 from pydantic import BaseModel, EmailStr
 
