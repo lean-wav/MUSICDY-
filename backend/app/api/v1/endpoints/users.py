@@ -5,7 +5,6 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.core import security
-from app.core.emails import send_verification_email
 from app.api.v1.endpoints.notifications import notify_user as ws_notify
 import asyncio
 from datetime import timedelta
