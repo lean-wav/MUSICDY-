@@ -16,6 +16,15 @@ from app.core.config import settings
 
 router = APIRouter()
 
+@router.get("/debug-db")
+def debug_db():
+    import subprocess
+    try:
+        result = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True, check=True)
+        return {"stdout": result.stdout, "stderr": result.stderr}
+    except subprocess.CalledProcessError as e:
+        return {"stdout": e.stdout, "stderr": e.stderr, "error": str(e)}
+
 @router.post("/", response_model=user_schemas.User)
 def create_user(
     *,
