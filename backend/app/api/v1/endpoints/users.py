@@ -20,8 +20,7 @@ router = APIRouter()
 def create_user(
     *,
     db: Session = Depends(deps.get_db),
-    user_in: user_schemas.UserCreate,
-    background_tasks: BackgroundTasks
+    user_in: user_schemas.UserCreate
 ) -> Any:
     """
     Create new user.
