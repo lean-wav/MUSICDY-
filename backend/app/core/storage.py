@@ -72,5 +72,6 @@ def upload_file_to_s3(file_obj, object_name: str, content_type: str = None) -> s
                  
         return public_url
     except Exception as e:
-        logger.error(f"Error uploading to S3: {e}")
-        return None
+        logger.error(f"Error uploading to S3: {e}", exc_info=True)
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"Fallo AWS/R2: {str(e)}")
