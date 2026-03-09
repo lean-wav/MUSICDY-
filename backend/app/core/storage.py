@@ -9,12 +9,24 @@ def get_boto3_client():
     if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY or not settings.AWS_BUCKET_NAME:
          return None
          
+    from botocore.config import Config
+    
+    # Cloudflare R2 specific sigv4 configuration
+    my_config = Config(
+        region_name=settings.AWS_REGION or 'auto',
+        signature_version='s3v4',
+        retries={
+            'max_attempts': 3,
+            'mode': 'standard'
+        }
+    )
+
     return boto3.client(
         's3',
         endpoint_url=settings.AWS_ENDPOINT_URL, # Used for non-AWS like R2 or Spaces
-        region_name=settings.AWS_REGION,
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        config=my_config
     )
 
 def upload_file_to_s3(file_obj, object_name: str, content_type: str = None) -> str:

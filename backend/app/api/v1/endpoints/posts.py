@@ -69,7 +69,7 @@ def create_post(
         if tipo_contenido in [TipoContenido.VIDEO, TipoContenido.VIDEO_TERCEROS]:
             ALLOWED_EXTENSIONS = [".mp4", ".mov"]
         else:
-            ALLOWED_EXTENSIONS = [".wav", ".aiff", ".aif", ".flac"]
+            ALLOWED_EXTENSIONS = [".wav", ".aiff", ".aif", ".flac", ".mp3"]
             
         if file_ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
