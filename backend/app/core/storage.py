@@ -11,9 +11,13 @@ def get_boto3_client():
          
     from botocore.config import Config
     
+    # Force 'auto' region if using Cloudflare R2 to bypass accidental Account ID injections
+    is_r2 = settings.AWS_ENDPOINT_URL and 'r2.cloudflarestorage.com' in settings.AWS_ENDPOINT_URL
+    detected_region = 'auto' if is_r2 else (settings.AWS_REGION or 'auto')
+
     # Cloudflare R2 specific sigv4 configuration
     my_config = Config(
-        region_name=settings.AWS_REGION or 'auto',
+        region_name=detected_region,
         signature_version='s3v4',
         retries={
             'max_attempts': 3,
