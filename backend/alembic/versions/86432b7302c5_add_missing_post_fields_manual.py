@@ -47,7 +47,6 @@ def upgrade() -> None:
     op.add_column('publicaciones', sa.Column('permitir_descarga_gratuita', sa.Boolean(), server_default='false', nullable=True))
     op.add_column('publicaciones', sa.Column('incluir_stems', sa.Boolean(), server_default='false', nullable=True))
     op.add_column('publicaciones', sa.Column('incluir_trackouts', sa.Boolean(), server_default='false', nullable=True))
-    op.add_column('publicaciones', sa.Column('licencias', sa.JSON(), nullable=True))
     op.add_column('publicaciones', sa.Column('allow_offers', sa.Boolean(), server_default='true', nullable=True))
     op.add_column('publicaciones', sa.Column('contract_url', sa.String(), nullable=True))
 
@@ -60,7 +59,7 @@ def downgrade() -> None:
         'fecha_programada', 'permitir_comentarios', 'permitir_reutilizacion', 'permitir_remix', 
         'permitir_colaboracion', 'status', 'plays', 'views', 'subgenero', 'mood', 'inspirado_en', 
         'idioma', 'creditos', 'isrc', 'permitir_descarga_gratuita', 'incluir_stems', 'incluir_trackouts', 
-        'licencias', 'allow_offers', 'contract_url'
+        'allow_offers', 'contract_url'
     ]
     for col in columns:
         op.drop_column('publicaciones', col)
