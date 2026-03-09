@@ -27,11 +27,22 @@ def upload_file_to_s3(file_obj, object_name: str, content_type: str = None) -> s
         return None
         
     try:
+        from boto3.s3.transfer import TransferConfig
+
         ExtraArgs = {'ACL': 'public-read'}
         if content_type:
              ExtraArgs['ContentType'] = content_type
 
-        s3_client.upload_fileobj(file_obj, settings.AWS_BUCKET_NAME, object_name, ExtraArgs=ExtraArgs)
+        # Optimize for 512MB RAM Server (Render Free/Hobby)
+        # Force 5MB chunks, max 2 concurrent uploads, use streaming
+        config = TransferConfig(
+            multipart_threshold=5 * 1024 * 1024, # 5MB
+            max_concurrency=2,
+            multipart_chunksize=5 * 1024 * 1024,
+            use_threads=True
+        )
+
+        s3_client.upload_fileobj(file_obj, settings.AWS_BUCKET_NAME, object_name, ExtraArgs=ExtraArgs, Config=config)
         
         # Build the public URL (If using R2, the format depends on your custom domain config)
         if settings.AWS_ENDPOINT_URL and 'r2.cloudflarestorage.com' in settings.AWS_ENDPOINT_URL:
