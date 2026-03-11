@@ -233,10 +233,12 @@ def debug_post_urls(post_id: int, db: Session = Depends(deps.get_db)):
 def _extract_s3_key(stored_url: str, bucket_name: str) -> str | None:
     """
     Extract the S3 object key from a stored URL.
-    Always returns a URL-decoded key so boto3 doesn't double-encode spaces.
+    NOTE: We deliberately do NOT URL-decode the key — the S3 objects were
+    uploaded with URL-encoded characters (e.g. %20) as literal key chars.
+    R2 handles the resulting double-encoding (%2520) gracefully on lookup.
     """
     import logging
-    from urllib.parse import urlparse, unquote
+    from urllib.parse import urlparse
 
     logger = logging.getLogger(__name__)
 
@@ -246,17 +248,14 @@ def _extract_s3_key(stored_url: str, bucket_name: str) -> str | None:
     parsed = urlparse(stored_url)
     path = parsed.path.lstrip('/')
 
-    # If bucket name appears at the start of the path, strip it
+    # Strip bucket prefix from path if present
     if path.startswith(f'{bucket_name}/'):
         key = path[len(f'{bucket_name}/'):]
     elif f'/{bucket_name}/' in f'/{path}':
         key = path.split(f'{bucket_name}/', 1)[-1]
     else:
-        # Custom domain or r2.dev — the whole path IS the key
+        # Custom domain or r2.dev — whole path is the key
         key = path
-
-    # URL-decode so boto3 doesn't double-encode (e.g. %20 → space, not %2520)
-    key = unquote(key)
 
     logger.info(f"Extracted S3 key '{key}' from '{stored_url}'")
     return key or None
