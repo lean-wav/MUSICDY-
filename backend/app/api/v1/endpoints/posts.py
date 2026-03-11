@@ -178,8 +178,12 @@ def create_post(
         db.commit()
         db.refresh(db_obj)
 
-        from app.worker import process_audio
-        process_audio.delay(db_obj.id, original_location)
+        # Trigger background audio processing (optional — requires Redis/Celery)
+        try:
+            from app.worker import process_audio
+            process_audio.delay(db_obj.id, original_location)
+        except Exception as celery_err:
+            logger.warning(f"Celery not available, skipping background processing: {celery_err}")
 
         return db_obj
 
@@ -203,34 +207,58 @@ def get_signed_media_url(key: str, db: Session = Depends(deps.get_db)):
     return {"url": url}
 
 
+def _extract_s3_key(stored_url: str, bucket_name: str) -> str | None:
+    """
+    Extract the S3 object key from a stored URL.
+    Handles multiple URL formats:
+    - https://<accountid>.r2.cloudflarestorage.com/<bucket>/orig/file.mp3  (R2 API endpoint)
+    - https://pub-xxx.r2.dev/orig/file.mp3  (R2 public domain)
+    - https://<bucket>.s3.<region>.amazonaws.com/orig/file.mp3  (AWS S3)
+    - https://<custom-domain>/orig/file.mp3  (custom R2 domain)
+    """
+    import logging
+    from urllib.parse import urlparse
+
+    logger = logging.getLogger(__name__)
+
+    if not stored_url or not stored_url.startswith('http'):
+        return None
+
+    parsed = urlparse(stored_url)
+    path = parsed.path.lstrip('/')
+
+    # If bucket name appears at the start of the path, strip it
+    if path.startswith(f'{bucket_name}/'):
+        key = path[len(f'{bucket_name}/'):]
+    # If bucket name appears somewhere in the URL path
+    elif f'/{bucket_name}/' in f'/{path}':
+        key = path.split(f'{bucket_name}/', 1)[-1]
+    else:
+        # Custom domain or r2.dev — the whole path IS the key
+        key = path
+
+    logger.info(f"Extracted S3 key '{key}' from URL '{stored_url}'")
+    return key or None
+
+
 def _sign_post(post: Publicacion) -> Publicacion:
     """Attach presigned URLs to a post object's media fields."""
     from app.core.storage import generate_presigned_url
     from app.core.config import settings
-    
+
+    if not settings.AWS_BUCKET_NAME:
+        return post  # local dev: return as-is
+
     def sign(stored_url: str | None) -> str | None:
         if not stored_url:
             return None
-        if not settings.AWS_BUCKET_NAME:
-            return stored_url  # local dev: return as-is
-        # Extract the S3 key from the stored URL
-        # Stored URL examples:
-        #   https://<endpoint>/<bucket>/originals/123_beat.mp3  (R2 fallback)
-        #   https://pub-xxx.r2.dev/originals/123_beat.mp3       (R2 public)
-        #   /static/originals/123_beat.mp3                       (local)
-        if stored_url.startswith('http'):
-            # Strip the bucket and domain parts to get the key
-            # Try to find the bucket name in the URL
-            bucket = settings.AWS_BUCKET_NAME
-            if f'/{bucket}/' in stored_url:
-                key = stored_url.split(f'/{bucket}/', 1)[-1]
-            else:
-                # It might be a public URL - try to extract path after domain
-                from urllib.parse import urlparse
-                parsed = urlparse(stored_url)
-                key = parsed.path.lstrip('/')
-            return generate_presigned_url(key) or stored_url
-        return stored_url  # not an S3 URL, return as-is
+        if not stored_url.startswith('http'):
+            return stored_url  # local static file
+        key = _extract_s3_key(stored_url, settings.AWS_BUCKET_NAME)
+        if not key:
+            return stored_url
+        signed = generate_presigned_url(key)
+        return signed or stored_url  # fallback to original if signing fails
 
     post.archivo_original = sign(post.archivo_original)
     post.archivo = sign(post.archivo)
