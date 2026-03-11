@@ -196,15 +196,38 @@ def create_post(
 
 @router.get("/media/sign")
 def get_signed_media_url(key: str, db: Session = Depends(deps.get_db)):
-    """
-    Generate a presigned URL for any private file stored in R2/S3.
-    The `key` param is the S3 object path (e.g. originals/12345_beat.mp3).
-    """
     from app.core.storage import generate_presigned_url
     url = generate_presigned_url(key, expiration=3600)
     if not url:
         raise HTTPException(status_code=404, detail="No se pudo generar URL firmada.")
     return {"url": url}
+
+
+@router.get("/debug/{post_id}")
+def debug_post_urls(post_id: int, db: Session = Depends(deps.get_db)):
+    """Debug endpoint: shows raw DB URLs and what presigned URLs they become."""
+    from app.core.storage import generate_presigned_url
+    from app.core.config import settings
+
+    post = db.query(Publicacion).filter(Publicacion.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    def sign_debug(field_name: str, stored: str | None) -> dict:
+        if not stored:
+            return {"raw": None, "signed": None, "key": None}
+        key = _extract_s3_key(stored, settings.AWS_BUCKET_NAME or "") if stored.startswith("http") else None
+        signed = generate_presigned_url(key) if key else None
+        return {"raw": stored, "key": key, "signed": signed}
+
+    return {
+        "id": post.id,
+        "bucket": settings.AWS_BUCKET_NAME,
+        "endpoint": settings.AWS_ENDPOINT_URL,
+        "archivo_original": sign_debug("archivo_original", post.archivo_original),
+        "cover_url": sign_debug("cover_url", post.cover_url),
+    }
+
 
 
 def _extract_s3_key(stored_url: str, bucket_name: str) -> str | None:
