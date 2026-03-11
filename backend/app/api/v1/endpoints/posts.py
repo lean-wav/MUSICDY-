@@ -190,6 +190,54 @@ def create_post(
         raise HTTPException(status_code=500, detail=f"Error al crear publicación: {str(e)}")
 
 
+@router.get("/media/sign")
+def get_signed_media_url(key: str, db: Session = Depends(deps.get_db)):
+    """
+    Generate a presigned URL for any private file stored in R2/S3.
+    The `key` param is the S3 object path (e.g. originals/12345_beat.mp3).
+    """
+    from app.core.storage import generate_presigned_url
+    url = generate_presigned_url(key, expiration=3600)
+    if not url:
+        raise HTTPException(status_code=404, detail="No se pudo generar URL firmada.")
+    return {"url": url}
+
+
+def _sign_post(post: Publicacion) -> Publicacion:
+    """Attach presigned URLs to a post object's media fields."""
+    from app.core.storage import generate_presigned_url
+    from app.core.config import settings
+    
+    def sign(stored_url: str | None) -> str | None:
+        if not stored_url:
+            return None
+        if not settings.AWS_BUCKET_NAME:
+            return stored_url  # local dev: return as-is
+        # Extract the S3 key from the stored URL
+        # Stored URL examples:
+        #   https://<endpoint>/<bucket>/originals/123_beat.mp3  (R2 fallback)
+        #   https://pub-xxx.r2.dev/originals/123_beat.mp3       (R2 public)
+        #   /static/originals/123_beat.mp3                       (local)
+        if stored_url.startswith('http'):
+            # Strip the bucket and domain parts to get the key
+            # Try to find the bucket name in the URL
+            bucket = settings.AWS_BUCKET_NAME
+            if f'/{bucket}/' in stored_url:
+                key = stored_url.split(f'/{bucket}/', 1)[-1]
+            else:
+                # It might be a public URL - try to extract path after domain
+                from urllib.parse import urlparse
+                parsed = urlparse(stored_url)
+                key = parsed.path.lstrip('/')
+            return generate_presigned_url(key) or stored_url
+        return stored_url  # not an S3 URL, return as-is
+
+    post.archivo_original = sign(post.archivo_original)
+    post.archivo = sign(post.archivo)
+    post.cover_url = sign(post.cover_url)
+    return post
+
+
 @router.get("/", response_model=List[post_schemas.PublicacionResponse])
 def read_posts(
     db: Session = Depends(deps.get_db),
@@ -206,8 +254,10 @@ def read_posts(
         query = query.filter(Publicacion.genero_musical == genero)
     if usuario_id:
         query = query.filter(Publicacion.usuario_id == usuario_id)
-        
-    return query.order_by(Publicacion.fecha_subida.desc()).offset(skip).limit(limit).all()
+
+    posts = query.order_by(Publicacion.fecha_subida.desc()).offset(skip).limit(limit).all()
+    return [_sign_post(p) for p in posts]
+
 
 @router.get("/following", response_model=List[post_schemas.PublicacionResponse])
 def read_following_posts(

@@ -27,6 +27,27 @@ def get_boto3_client():
         config=my_config
     )
 
+
+def generate_presigned_url(object_name: str, expiration: int = 3600) -> str | None:
+    """
+    Generate a presigned URL for private R2/S3 objects.
+    Works without making the bucket public — the URL is valid for `expiration` seconds (default 1 hour).
+    """
+    s3_client = get_boto3_client()
+    if not s3_client or not object_name:
+        return None
+    try:
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': settings.AWS_BUCKET_NAME, 'Key': object_name},
+            ExpiresIn=expiration
+        )
+        return url
+    except Exception as e:
+        logger.error(f"Error generating presigned URL for {object_name}: {e}")
+        return None
+
+
 def upload_file_to_s3(file_obj, object_name: str, content_type: str = None) -> str:
     """
     Upload a file to S3-compatible storage (AWS S3, Cloudflare R2, DigitalOcean Spaces).
