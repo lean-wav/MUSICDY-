@@ -58,136 +58,137 @@ def create_post(
     db: Session = Depends(deps.get_db),
     current_user: Usuario = Depends(deps.get_current_user),
 ):
-    import json
-    
-    original_location = None
-    if tipo_contenido in [TipoContenido.BEAT, TipoContenido.OWN_MUSIC, TipoContenido.VIDEO_TERCEROS, TipoContenido.VIDEO]:
-        if not archivo:
-            raise HTTPException(status_code=400, detail="Este tipo de contenido requiere un archivo adjunto.")
-        
-        file_ext = os.path.splitext(archivo.filename)[1].lower()
-        if tipo_contenido in [TipoContenido.VIDEO, TipoContenido.VIDEO_TERCEROS]:
-            ALLOWED_EXTENSIONS = [".mp4", ".mov"]
-        else:
-            ALLOWED_EXTENSIONS = [".wav", ".aiff", ".aif", ".flac", ".mp3"]
-            
-        if file_ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Formato no permitido. Por favor sube archivos: {', '.join(ALLOWED_EXTENSIONS)}"
-            )
-        
-        # Limit (200MB)
-        MAX_FILE_SIZE = 200 * 1024 * 1024 
-        if archivo.size and archivo.size > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo es demasiado grande."
-            )
+    import json, traceback, logging
+    logger = logging.getLogger(__name__)
 
+    try:
+        original_location = None
         timestamp_prefix = int(datetime.now().timestamp())
-        safe_filename = f"{timestamp_prefix}_{archivo.filename}"
-        
-        # If AWS is enabled in .env, upload to S3 directly:
-        if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
-            s3_url = upload_file_to_s3(archivo.file, f"originals/{safe_filename}", archivo.content_type)
-            if s3_url:
-                original_location = s3_url
+
+        if tipo_contenido in [TipoContenido.BEAT, TipoContenido.OWN_MUSIC, TipoContenido.VIDEO_TERCEROS, TipoContenido.VIDEO]:
+            if not archivo:
+                raise HTTPException(status_code=400, detail="Este tipo de contenido requiere un archivo adjunto.")
+
+            file_ext = os.path.splitext(archivo.filename)[1].lower()
+            if tipo_contenido in [TipoContenido.VIDEO, TipoContenido.VIDEO_TERCEROS]:
+                ALLOWED_EXTENSIONS = [".mp4", ".mov"]
             else:
-                raise HTTPException(status_code=500, detail="Fallo la conexión con Cloud Storage.")
-        else:
-            # Fallback local (Development only)
-            os.makedirs(os.path.join(UPLOAD_DIR, "originals"), exist_ok=True)
-            original_location = os.path.join(UPLOAD_DIR, "originals", safe_filename)
-            with open(original_location, "wb") as buffer:
-                shutil.copyfileobj(archivo.file, buffer)
-    else:
-        timestamp_prefix = int(datetime.now().timestamp())
-        
-    # Salvar Portada
-    cover_loc = None
-    if portada:
-        cover_safe = f"{timestamp_prefix}_cover_{portada.filename}"
-        if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
-            s3_url = upload_file_to_s3(portada.file, f"covers/{cover_safe}", portada.content_type)
-            if s3_url: cover_loc = s3_url
-        else:
-            # Fallback Local
-            os.makedirs(os.path.join(UPLOAD_DIR, "covers"), exist_ok=True)
-            cover_full = os.path.join(UPLOAD_DIR, "covers", cover_safe)
-            with open(cover_full, "wb") as buffer:
-                shutil.copyfileobj(portada.file, buffer)
-            cover_loc = f"/static/covers/{cover_safe}" 
-        
-    # Salvar Visual Loop
-    loop_loc = None
-    if visual_loop:
-        loop_safe = f"{timestamp_prefix}_loop_{visual_loop.filename}"
-        if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
-            s3_url = upload_file_to_s3(visual_loop.file, f"loops/{loop_safe}", visual_loop.content_type)
-            if s3_url: loop_loc = s3_url
-        else:
-            os.makedirs(os.path.join(UPLOAD_DIR, "loops"), exist_ok=True)
-            loop_full = os.path.join(UPLOAD_DIR, "loops", loop_safe)
-            with open(loop_full, "wb") as buffer:
-                shutil.copyfileobj(visual_loop.file, buffer)
-            loop_loc = f"/static/loops/{loop_safe}"
-        
-    # Parsear JSONs
-    parsed_tags = json.loads(tags) if tags else []
-    parsed_mood = json.loads(mood) if mood else []
-    parsed_creditos = json.loads(creditos) if creditos else {}
+                ALLOWED_EXTENSIONS = [".wav", ".aiff", ".aif", ".flac", ".mp3"]
 
-    # 4. Create DB object with 'processing' status
-    db_obj = Publicacion(
-        titulo=titulo,
-        artista=artista or current_user.username,
-        tipo_contenido=tipo_contenido,
-        genero_musical=genero_musical,
-        subgenero=subgenero,
-        descripcion=descripcion or "",
-        subtitulo=subtitulo,
-        archivo_original=original_location,
-        archivo=original_location, # Fallback while processing
-        cover_url=cover_loc,
-        visual_loop_url=loop_loc,
-        hashtags=hashtags,
-        tags=parsed_tags,
-        mood=parsed_mood,
-        inspirado_en=inspirado_en,
-        idioma=idioma,
-        creditos=parsed_creditos,
-        isrc=isrc,
-        contacto=contacto,
-        bpm=bpm,
-        escala=escala,
-        visibilidad=visibilidad,
-        permitir_comentarios=permitir_comentarios,
-        permitir_reutilizacion=permitir_reutilizacion,
-        permitir_remix=permitir_remix,
-        permitir_colaboracion=permitir_colaboracion,
-        permitir_descarga_gratuita=permitir_descarga_gratuita,
-        incluir_stems=incluir_stems,
-        incluir_trackouts=incluir_trackouts,
-        free_use=free_use,
-        es_autor=es_autor,
-        artista_original=artista_original,
-        plataforma_origen=plataforma_origen,
-        link_externo=link_externo,
-        usuario_id=current_user.id,
-        fecha_subida=datetime.utcnow(),
-        status="processing",
-    )
-    
-    db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
-    
-    # 5. Trigger Background Processing
-    from app.worker import process_audio
-    process_audio.delay(db_obj.id, original_location)
-        
-    return db_obj
+            if file_ext not in ALLOWED_EXTENSIONS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Formato no permitido. Por favor sube: {', '.join(ALLOWED_EXTENSIONS)}"
+                )
+
+            MAX_FILE_SIZE = 200 * 1024 * 1024
+            if archivo.size and archivo.size > MAX_FILE_SIZE:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El archivo es demasiado grande.")
+
+            safe_filename = f"{timestamp_prefix}_{archivo.filename}"
+
+            if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
+                s3_url = upload_file_to_s3(archivo.file, f"originals/{safe_filename}", archivo.content_type)
+                if s3_url:
+                    original_location = s3_url
+                else:
+                    raise HTTPException(status_code=500, detail="Fallo la conexión con Cloud Storage.")
+            else:
+                os.makedirs(os.path.join(UPLOAD_DIR, "originals"), exist_ok=True)
+                original_location = os.path.join(UPLOAD_DIR, "originals", safe_filename)
+                with open(original_location, "wb") as buffer:
+                    shutil.copyfileobj(archivo.file, buffer)
+
+        # Salvar Portada
+        cover_loc = None
+        if portada:
+            cover_safe = f"{timestamp_prefix}_cover_{portada.filename}"
+            if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
+                s3_url = upload_file_to_s3(portada.file, f"covers/{cover_safe}", portada.content_type)
+                if s3_url:
+                    cover_loc = s3_url
+            else:
+                os.makedirs(os.path.join(UPLOAD_DIR, "covers"), exist_ok=True)
+                cover_full = os.path.join(UPLOAD_DIR, "covers", cover_safe)
+                with open(cover_full, "wb") as buffer:
+                    shutil.copyfileobj(portada.file, buffer)
+                cover_loc = f"/static/covers/{cover_safe}"
+
+        # Salvar Visual Loop
+        loop_loc = None
+        if visual_loop:
+            loop_safe = f"{timestamp_prefix}_loop_{visual_loop.filename}"
+            if settings.AWS_BUCKET_NAME and settings.AWS_ACCESS_KEY_ID:
+                s3_url = upload_file_to_s3(visual_loop.file, f"loops/{loop_safe}", visual_loop.content_type)
+                if s3_url:
+                    loop_loc = s3_url
+            else:
+                os.makedirs(os.path.join(UPLOAD_DIR, "loops"), exist_ok=True)
+                loop_full = os.path.join(UPLOAD_DIR, "loops", loop_safe)
+                with open(loop_full, "wb") as buffer:
+                    shutil.copyfileobj(visual_loop.file, buffer)
+                loop_loc = f"/static/loops/{loop_safe}"
+
+        # Parsear JSONs
+        parsed_tags = json.loads(tags) if tags else []
+        parsed_mood = json.loads(mood) if mood else []
+        parsed_creditos = json.loads(creditos) if creditos else {}
+
+        db_obj = Publicacion(
+            titulo=titulo,
+            artista=artista or current_user.username,
+            tipo_contenido=tipo_contenido,
+            genero_musical=genero_musical,
+            subgenero=subgenero,
+            descripcion=descripcion or "",
+            subtitulo=subtitulo,
+            archivo_original=original_location,
+            archivo=original_location,
+            cover_url=cover_loc,
+            visual_loop_url=loop_loc,
+            hashtags=hashtags,
+            tags=parsed_tags,
+            mood=parsed_mood,
+            inspirado_en=inspirado_en,
+            idioma=idioma,
+            creditos=parsed_creditos,
+            isrc=isrc,
+            contacto=contacto,
+            bpm=bpm,
+            escala=escala,
+            visibilidad=visibilidad,
+            permitir_comentarios=permitir_comentarios,
+            permitir_reutilizacion=permitir_reutilizacion,
+            permitir_remix=permitir_remix,
+            permitir_colaboracion=permitir_colaboracion,
+            permitir_descarga_gratuita=permitir_descarga_gratuita,
+            incluir_stems=incluir_stems,
+            incluir_trackouts=incluir_trackouts,
+            free_use=free_use,
+            es_autor=es_autor,
+            artista_original=artista_original,
+            plataforma_origen=plataforma_origen,
+            link_externo=link_externo,
+            usuario_id=current_user.id,
+            fecha_subida=datetime.utcnow(),
+            status="processing",
+        )
+
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+
+        from app.worker import process_audio
+        process_audio.delay(db_obj.id, original_location)
+
+        return db_obj
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CREATE_POST ERROR: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error al crear publicación: {str(e)}")
+
 
 @router.get("/", response_model=List[post_schemas.PublicacionResponse])
 def read_posts(
