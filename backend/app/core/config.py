@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     AWS_BUCKET_NAME: Optional[str] = None
     AWS_REGION: Optional[str] = None
     AWS_ENDPOINT_URL: Optional[str] = None
+    R2_PUBLIC_URL: Optional[str] = None  # e.g. https://pub-XXXX.r2.dev or custom domain
 
     # Stripe
     STRIPE_API_KEY: Optional[str] = None

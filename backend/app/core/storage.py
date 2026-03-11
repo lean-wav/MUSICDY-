@@ -1,5 +1,4 @@
 import boto3
-from botocore.exceptions import NoCredentialsError
 from app.core.config import settings
 import logging
 
@@ -7,27 +6,22 @@ logger = logging.getLogger(__name__)
 
 def get_boto3_client():
     if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SECRET_ACCESS_KEY or not settings.AWS_BUCKET_NAME:
-         return None
-         
-    from botocore.config import Config
-    
-    # Force 'auto' region if using Cloudflare R2 to bypass accidental Account ID injections
-    is_r2 = settings.AWS_ENDPOINT_URL and 'r2.cloudflarestorage.com' in settings.AWS_ENDPOINT_URL
-    detected_region = 'auto' if is_r2 else (settings.AWS_REGION or 'auto')
+        return None
 
-    # Cloudflare R2 specific sigv4 configuration
+    from botocore.config import Config
+
+    is_r2 = settings.AWS_ENDPOINT_URL and 'r2.cloudflarestorage.com' in settings.AWS_ENDPOINT_URL
+    detected_region = 'auto' if is_r2 else (settings.AWS_REGION or 'us-east-1')
+
     my_config = Config(
         region_name=detected_region,
         signature_version='s3v4',
-        retries={
-            'max_attempts': 3,
-            'mode': 'standard'
-        }
+        retries={'max_attempts': 3, 'mode': 'standard'}
     )
 
     return boto3.client(
         's3',
-        endpoint_url=settings.AWS_ENDPOINT_URL, # Used for non-AWS like R2 or Spaces
+        endpoint_url=settings.AWS_ENDPOINT_URL,
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
         config=my_config
@@ -35,47 +29,66 @@ def get_boto3_client():
 
 def upload_file_to_s3(file_obj, object_name: str, content_type: str = None) -> str:
     """
-    Upload a file to an S3 compatible storage (like AWS S3, Cloudflare R2, DigitalOcean Spaces)
+    Upload a file to S3-compatible storage (AWS S3, Cloudflare R2, DigitalOcean Spaces).
+    Returns the public URL of the uploaded file, or raises HTTPException on failure.
     """
     s3_client = get_boto3_client()
     if not s3_client:
-        logger.warning("Storage credentials not found, skipping cloud upload.")
+        logger.warning("Storage credentials not configured, skipping upload.")
         return None
-        
+
     try:
         from boto3.s3.transfer import TransferConfig
 
-        ExtraArgs = {'ACL': 'public-read'}
+        ExtraArgs = {}
         if content_type:
-             ExtraArgs['ContentType'] = content_type
+            ExtraArgs['ContentType'] = content_type
 
-        # Optimize for 512MB RAM Server (Render Free/Hobby)
-        # Force 5MB chunks, max 2 concurrent uploads, use streaming
+        # NOTE: Cloudflare R2 does NOT support ACLs (public-read).
+        # Make the bucket public via the R2 dashboard instead.
+        # For AWS S3, uncomment the next line:
+        # ExtraArgs['ACL'] = 'public-read'
+
         config = TransferConfig(
-            multipart_threshold=5 * 1024 * 1024, # 5MB
+            multipart_threshold=5 * 1024 * 1024,
             max_concurrency=2,
             multipart_chunksize=5 * 1024 * 1024,
             use_threads=True
         )
 
-        s3_client.upload_fileobj(file_obj, settings.AWS_BUCKET_NAME, object_name, ExtraArgs=ExtraArgs, Config=config)
-        
-        # Build the public URL (If using R2, the format depends on your custom domain config)
-        if settings.AWS_ENDPOINT_URL and 'r2.cloudflarestorage.com' in settings.AWS_ENDPOINT_URL:
-            # Note: For Cloudflare R2 public links, you usually use a custom domain, 
-            # this is just a placeholder example. Replace with your actual R2 public domain.
-            public_url = f"https://your-r2-public-domain.com/{object_name}"
+        s3_client.upload_fileobj(
+            file_obj,
+            settings.AWS_BUCKET_NAME,
+            object_name,
+            ExtraArgs=ExtraArgs,
+            Config=config
+        )
+
+        # ─── Build the public URL ───────────────────────────────────────────
+        is_r2 = settings.AWS_ENDPOINT_URL and 'r2.cloudflarestorage.com' in settings.AWS_ENDPOINT_URL
+
+        if is_r2:
+            if settings.R2_PUBLIC_URL:
+                # Use the custom domain / r2.dev public URL from env
+                base = settings.R2_PUBLIC_URL.rstrip('/')
+                public_url = f"{base}/{object_name}"
+            else:
+                # Fallback: derive from endpoint URL
+                # AWS_ENDPOINT_URL looks like: https://<accountid>.r2.cloudflarestorage.com
+                clean = settings.AWS_ENDPOINT_URL.rstrip('/')
+                public_url = f"{clean}/{settings.AWS_BUCKET_NAME}/{object_name}"
+        elif settings.AWS_ENDPOINT_URL:
+            # DigitalOcean Spaces or other S3-compatible
+            clean = settings.AWS_ENDPOINT_URL.replace("https://", "").replace("http://", "").rstrip('/')
+            public_url = f"https://{settings.AWS_BUCKET_NAME}.{clean}/{object_name}"
         else:
-             # Standard AWS S3 format or DigitalOcean Spaces
-             if settings.AWS_ENDPOINT_URL:
-                 # Clean up https:// from endpoint
-                 clean_endpoint = settings.AWS_ENDPOINT_URL.replace("https://", "").replace("http://", "")
-                 public_url = f"https://{settings.AWS_BUCKET_NAME}.{clean_endpoint}/{object_name}"
-             else:
-                 public_url = f"https://{settings.AWS_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{object_name}"
-                 
+            # Standard AWS S3
+            public_url = f"https://{settings.AWS_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com/{object_name}"
+
+        logger.info(f"Uploaded {object_name} → {public_url}")
         return public_url
+
     except Exception as e:
-        logger.error(f"Error uploading to S3: {e}", exc_info=True)
+        logger.error(f"Error uploading to storage: {e}", exc_info=True)
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Fallo AWS/R2: {str(e)}")
