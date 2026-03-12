@@ -22,36 +22,49 @@ class Usuario(Base):
     email = Column(String, unique=True)
     password_hash = Column(String)
     foto_perfil = Column(String, default="default.jpg")
+    banner_image = Column(String, nullable=True)
     nombre_artistico = Column(String, nullable=True)
     bio = Column(String, default="")
     sales_count = Column(Integer, default=0)
     total_plays = Column(Integer, default=0)
     fecha_registro = Column(DateTime, default=datetime.utcnow)
-    stripe_account_id = Column(String, nullable=True) # ID de cuenta conectada de Stripe
-    mp_account_id = Column(String, nullable=True) # ID/Token de MercadoPago
-    country = Column(String, default="US") # AR, US, etc.
-    profile_views = Column(Integer, default=0) # Analytics: Vistas de perfil
+    stripe_account_id = Column(String, nullable=True)
+    mp_account_id = Column(String, nullable=True)
+    country = Column(String, default="US")
+    profile_views = Column(Integer, default=0)
     phone = Column(String, nullable=True)
     birthdate = Column(DateTime, nullable=True)
     is_private = Column(Boolean, default=False)
-    
-    # New Auth & Profile Fields
-    provider = Column(String, default="email") # email, google, apple
+
+    # Social links
+    website = Column(String, nullable=True)
+    instagram = Column(String, nullable=True)
+    youtube = Column(String, nullable=True)
+    spotify = Column(String, nullable=True)
+    tiktok = Column(String, nullable=True)
+
+    # Genres & discovery
+    genres = Column(JSON, default=[])
+    subgenres = Column(JSON, default=[])
+
+    # Verification & visibility
+    verified_type = Column(String, default="none")  # none, subscription, official
+    saved_visibility = Column(String, default="public")  # public, private
+    pinned_posts = Column(JSON, default=[])  # list of post IDs (max 3)
+
+    # Auth & Profile Fields
+    provider = Column(String, default="email")
     provider_id = Column(String, nullable=True, index=True)
     is_verified = Column(Boolean, default=False)
     account_status = Column(String, default="active")
-    tipo_usuario = Column(String, default="Oyente") # Productor, Artista, Oyente, Ambos
+    tipo_usuario = Column(String, default="Oyente")
 
     settings = Column(JSON, default={
         "privacy": {
-            "find_by_email": True,
-            "find_by_phone": True,
-            "recommend_account": True,
-            "sync_contacts": False,
-            "allow_reuse": True,
-            "allow_download": False,
-            "show_followers": True,
-            "show_activity": True
+            "find_by_email": True, "find_by_phone": True,
+            "recommend_account": True, "sync_contacts": False,
+            "allow_reuse": True, "allow_download": False,
+            "show_followers": True, "show_activity": True
         },
         "notifications": {
             "push": {"sales": True, "followers": True, "comments": True},
@@ -63,20 +76,21 @@ class Usuario(Base):
             "allow_offers": True
         }
     })
-    
-    # Relaciones
+
+    # Relationships
     publicaciones = relationship("Publicacion", back_populates="usuario")
     likes = relationship("Like", back_populates="usuario")
     comentarios = relationship("Comentario", back_populates="usuario")
     guardados = relationship("Guardado", back_populates="usuario")
-    
-    # Seguidores y seguidos
+    colaboraciones = relationship("PostColaboracion", back_populates="usuario", foreign_keys="PostColaboracion.usuario_id")
+
     following = relationship(
         'Usuario', secondary=followers,
         primaryjoin=(followers.c.follower_id == id),
         secondaryjoin=(followers.c.followed_id == id),
         backref='followers'
     )
+
 
 class Publicacion(Base):
     __tablename__ = "publicaciones"
@@ -271,3 +285,19 @@ class MensajeColaboracion(Base):
 
     proyecto = relationship("ProyectoColaboracion", back_populates="mensajes")
     usuario = relationship("Usuario")
+
+
+class PostColaboracion(Base):
+    """Links a post to collaborating artists (tagging system)."""
+    __tablename__ = "post_colaboraciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    publicacion_id = Column(Integer, ForeignKey("publicaciones.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    # status: pending (invited) | accepted | rejected | removed
+    status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    publicacion = relationship("Publicacion", backref="colaboradores")
+    usuario = relationship("Usuario", back_populates="colaboraciones", foreign_keys=[usuario_id])

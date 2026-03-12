@@ -563,4 +563,134 @@ async def make_offer(
     
     return {"status": "success", "message": "Oferta enviada correctamente"}
 
+
 from fastapi import Body
+
+# ─── Like / Save ───────────────────────────────────────────────────────────────
+
+@router.post("/{post_id}/like")
+def toggle_like(
+    post_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Toggle like on a post. Returns current like count and whether the user has liked it."""
+    from app.models.models import Like
+    post = db.query(Publicacion).filter(Publicacion.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+    existing = db.query(Like).filter(Like.usuario_id == current_user.id, Like.publicacion_id == post_id).first()
+    if existing:
+        db.delete(existing)
+        liked = False
+    else:
+        db.add(Like(usuario_id=current_user.id, publicacion_id=post_id))
+        liked = True
+    db.commit()
+    like_count = db.query(Like).filter(Like.publicacion_id == post_id).count()
+    return {"liked": liked, "likes": like_count}
+
+
+@router.post("/{post_id}/save")
+def toggle_save(
+    post_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Toggle save (bookmark) on a post."""
+    from app.models.models import Guardado
+    post = db.query(Publicacion).filter(Publicacion.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+    existing = db.query(Guardado).filter(Guardado.usuario_id == current_user.id, Guardado.publicacion_id == post_id).first()
+    if existing:
+        db.delete(existing)
+        saved = False
+    else:
+        db.add(Guardado(usuario_id=current_user.id, publicacion_id=post_id))
+        saved = True
+    db.commit()
+    return {"saved": saved}
+
+
+# ─── Collaboration tagging ──────────────────────────────────────────────────────
+
+@router.post("/{post_id}/collaborators/invite")
+def invite_collaborator(
+    post_id: int,
+    user_id: int = Body(..., embed=True),
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Invite a user to be a collaborator on a post."""
+    from app.models.models import PostColaboracion, Usuario as U
+    post = db.query(Publicacion).filter(Publicacion.id == post_id, Publicacion.usuario_id == current_user.id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post no encontrado o no te pertenece")
+    invited = db.query(U).filter(U.id == user_id).first()
+    if not invited:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    existing = db.query(PostColaboracion).filter(PostColaboracion.publicacion_id == post_id, PostColaboracion.usuario_id == user_id).first()
+    if existing:
+        return {"status": existing.status}
+    collab = PostColaboracion(publicacion_id=post_id, usuario_id=user_id, status="pending")
+    db.add(collab)
+    db.commit()
+    return {"status": "pending", "usuario_id": user_id}
+
+
+@router.patch("/{post_id}/collaborators/accept")
+def accept_collaboration(
+    post_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Accept a collaboration invitation on a post."""
+    from app.models.models import PostColaboracion
+    collab = db.query(PostColaboracion).filter(
+        PostColaboracion.publicacion_id == post_id,
+        PostColaboracion.usuario_id == current_user.id,
+        PostColaboracion.status == "pending"
+    ).first()
+    if not collab:
+        raise HTTPException(status_code=404, detail="Invitación no encontrada")
+    collab.status = "accepted"
+    db.commit()
+    return {"status": "accepted"}
+
+
+@router.patch("/{post_id}/collaborators/reject")
+def reject_collaboration(
+    post_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Reject a collaboration invitation."""
+    from app.models.models import PostColaboracion
+    collab = db.query(PostColaboracion).filter(
+        PostColaboracion.publicacion_id == post_id,
+        PostColaboracion.usuario_id == current_user.id,
+    ).first()
+    if not collab:
+        raise HTTPException(status_code=404, detail="Invitación no encontrada")
+    collab.status = "rejected"
+    db.commit()
+    return {"status": "rejected"}
+
+
+@router.delete("/{post_id}/collaborators")
+def remove_collaboration(
+    post_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Remove self from a collaboration (user removes post from their collabs tab)."""
+    from app.models.models import PostColaboracion
+    collab = db.query(PostColaboracion).filter(
+        PostColaboracion.publicacion_id == post_id,
+        PostColaboracion.usuario_id == current_user.id,
+    ).first()
+    if collab:
+        collab.status = "removed"
+        db.commit()
+    return {"status": "removed"}
