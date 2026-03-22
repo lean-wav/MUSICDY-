@@ -70,7 +70,7 @@ async def websocket_endpoint(
 @router.get("/", response_model=List[dict])
 def get_notifications(
     db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.get_current_user),
 ):
     """
     Get notification history for the current user.

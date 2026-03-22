@@ -13,7 +13,7 @@ router = APIRouter()
 @router.get("/conversations", response_model=List[ConversationList])
 def get_conversations(
     db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.get_current_user),
 ):
     """
     Retrieve all conversations for the current user.
@@ -72,7 +72,7 @@ def get_conversations(
 def get_messages(
     convo_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.get_current_user),
 ):
     """
     Get message history for a conversation and mark as read.
@@ -103,7 +103,7 @@ def get_messages(
 async def start_conversation(
     other_user_id: int,
     db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.get_current_user),
 ):
     """
     Find or create a 1-to-1 conversation with another user.
@@ -145,7 +145,7 @@ async def start_conversation(
 async def send_message(
     msg_in: MessageChatCreate,
     db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.get_current_user),
 ):
     """
     Send a message in a conversation.

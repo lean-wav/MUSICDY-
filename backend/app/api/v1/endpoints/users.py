@@ -732,7 +732,7 @@ def get_user_social_stats(
 @router.get("/me/analytics")
 def get_my_analytics(
     db: Session = Depends(deps.get_db),
-    current_user: Usuario = Depends(deps.get_current_active_user),
+    current_user: Usuario = Depends(deps.get_current_user),
 ):
     """
     Get aggregated analytics for the producer.
