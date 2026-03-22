@@ -56,18 +56,18 @@ class PublicacionResponse(BaseModel):
     tipo_contenido: TipoContenido
     genero_musical: GeneroMusical
     usuario: UserResponse
-    likes_count: int = 0
-    comentarios_count: int = 0
-    guardados_count: int = 0
-    plays: int = 0
+    likes_count: Optional[int] = 0
+    comentarios_count: Optional[int] = 0
+    guardados_count: Optional[int] = 0
+    plays: Optional[int] = 0
     fecha_subida: datetime
     licencias: Optional[Any] = None
     precio: Optional[float] = None # USD Base price
     precio_ars: Optional[float] = None # ARS Base price
     
     # Interaction controls
-    permitir_remix: bool = True
-    permitir_descarga_gratuita: bool = False
+    permitir_remix: Optional[bool] = True
+    permitir_descarga_gratuita: Optional[bool] = False
     
     # Specific fields
     free_use: Optional[bool] = None
@@ -78,8 +78,8 @@ class PublicacionResponse(BaseModel):
     enlaces_externos: Optional[List[Dict]] = None # Simplified types for JSON
     artista_original: Optional[str] = None
     plataforma_origen: Optional[str] = None
-    is_private: bool = False
-    is_pinned: bool = False
+    is_private: Optional[bool] = False
+    is_pinned: Optional[bool] = False
 
     class Config:
         from_attributes = True
