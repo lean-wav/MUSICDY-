@@ -13,6 +13,7 @@ class UserCreate(UserBase):
     provider: Optional[str] = "email"
     provider_id: Optional[str] = None
     birthdate: Optional[str] = None
+    gender: Optional[str] = None
     tipo_usuario: Optional[str] = "General"
 
     @field_validator("password")
@@ -30,6 +31,12 @@ class UserUpdate(BaseModel):
     tipo_usuario: Optional[str] = None
     birthdate: Optional[str] = None
     country: Optional[str] = None
+    gender: Optional[str] = None
+    # Payouts & Financial
+    stripe_account_id: Optional[str] = None
+    mp_account_id: Optional[str] = None
+    paypal_email: Optional[str] = None
+    usdt_address: Optional[str] = None
     # Social links
     website: Optional[str] = None
     instagram: Optional[str] = None
@@ -70,8 +77,14 @@ class UserInDBBase(UserBase):
     tiktok: Optional[str] = None
     genres: Optional[List[str]] = None
     subgenres: Optional[List[str]] = None
-    verified_type: str = "none"
-    saved_visibility: str = "public"
+    gender: Optional[str] = None
+    # Financial & Payouts
+    wallet_balance: float = 0.0
+    stripe_account_id: Optional[str] = None
+    mp_account_id: Optional[str] = None
+    paypal_email: Optional[str] = None
+    usdt_address: Optional[str] = None
+    
     pinned_posts: Optional[List[int]] = None
 
     class Config:
@@ -107,6 +120,9 @@ class UserProfile(BaseModel):
     genres: Optional[List[str]] = None
     subgenres: Optional[List[str]] = None
     pinned_posts: Optional[List[int]] = None
+    total_likes: int = 0
+    accent_color: Optional[str] = None
+    profile_sections: Optional[dict] = None
     # Viewer context (set at request time)
     is_following: bool = False
     is_own_profile: bool = False

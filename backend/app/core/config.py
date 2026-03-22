@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
 
     # Security
-    SECRET_KEY: str = "CHANGE_THIS_IN_PRODUCTION_SECRET_KEY"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 dias para testing
 
@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
 
+    MERCADOPAGO_ACCESS_TOKEN: Optional[str] = None
+    MERCADOPAGO_PUBLIC_KEY: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -55,9 +58,8 @@ class Settings(BaseSettings):
             self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
             
         if not self.DATABASE_URL:
-            # Check if POSTGRES_SERVER is actually available in env or docker
-            # If set to local and DB fails or wasn't passed, fallback to sqlite MVP
             if self.POSTGRES_SERVER == "localhost":
+                 # Development fallback to SQLite
                  self.DATABASE_URL = "sqlite:///./musica.db"
             else:
                  self.DATABASE_URL = f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"

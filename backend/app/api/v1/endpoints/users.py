@@ -3,27 +3,22 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Form, File, UploadF
 from fastapi.responses import HTMLResponse
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.api import deps
 from app.core import security
 from app.api.v1.endpoints.notifications import notify_user as ws_notify
 import asyncio
+from app.services.social_service import SocialService
 from datetime import timedelta
 from jose import jwt, JWTError
-from app.models.models import Usuario, followers
+from app.models.models import Usuario, followers, SesionUsuario
 from app.schemas import user as user_schemas, social as social_schemas
 from app.core.storage import upload_file_to_s3
 from app.core.config import settings
+from pydantic import BaseModel, constr
 
 router = APIRouter()
 
-@router.get("/debug-db")
-def debug_db():
-    import subprocess
-    try:
-        result = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, text=True, check=True)
-        return {"stdout": result.stdout, "stderr": result.stderr}
-    except subprocess.CalledProcessError as e:
-        return {"stdout": e.stdout, "stderr": e.stderr, "error": str(e)}
 
 @router.post("/", response_model=user_schemas.User)
 def create_user(
@@ -61,12 +56,35 @@ def create_user(
             provider=user_in.provider,
             provider_id=user_in.provider_id,
             birthdate=user_in.birthdate,
-            is_verified=True,
+            # Social providers (Google/Apple) have already verified the email.
+            # Email/password registrations must confirm their email before it's trusted.
+            is_verified=user_in.provider not in (None, "email"),
             account_status="active"
         )
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
+
+        # Trigger email verification if needed
+        if not db_user.is_verified:
+            from datetime import timedelta
+            from app.core import security
+            from app.core.config import settings
+            from app.utils.email import send_verification_email
+            
+            # Create a dedicated verification token (can just reuse access token generation logic for now)
+            verification_token = security.create_access_token(
+                db_user.email, expires_delta=timedelta(hours=24)
+            )
+            
+            # Since create_user is sync, we need to schedule the async email or run it
+            # We will use BackgroundTasks if we can, or just run it with asyncio
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(send_verification_email(db_user.email, db_user.username, verification_token))
+            except RuntimeError:
+                asyncio.run(send_verification_email(db_user.email, db_user.username, verification_token))
 
         return db_user
     except HTTPException:
@@ -120,6 +138,34 @@ def read_user_me(
     """
     return current_user
 
+@router.patch("/me", response_model=user_schemas.User)
+def patch_user_me(
+    *,
+    db: Session = Depends(deps.get_db),
+    user_in: user_schemas.UserUpdate,
+    current_user: Usuario = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Update current user profile (JSON body).
+    """
+    update_data = user_in.model_dump(exclude_unset=True)
+    
+    if "username" in update_data:
+        # Check if username taken
+        new_username = update_data["username"]
+        existing_user = db.query(Usuario).filter(Usuario.username == new_username, Usuario.id != current_user.id).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+
+    for field, value in update_data.items():
+        if hasattr(current_user, field):
+            setattr(current_user, field, value)
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
 @router.put("/me", response_model=user_schemas.User)
 def update_user_me(
     *,
@@ -129,7 +175,7 @@ def update_user_me(
     bio: Optional[str] = Form(None),
     phone: Optional[str] = Form(None),
     is_private: Optional[bool] = Form(None),
-    settings: Optional[str] = Form(None), # JSON string
+    settings_json: Optional[str] = Form(None), # JSON string (renamed to avoid shadowing config `settings`)
     tipo_usuario: Optional[str] = Form(None),
     foto_perfil: Optional[UploadFile] = File(None),
     current_user: Usuario = Depends(deps.get_current_user),
@@ -159,10 +205,10 @@ def update_user_me(
     if tipo_usuario is not None:
         current_user.tipo_usuario = tipo_usuario
         
-    if settings is not None:
+    if settings_json is not None:
         import json
         try:
-            current_user.settings = json.loads(settings)
+            current_user.settings = json.loads(settings_json)
         except:
             pass
         
@@ -225,8 +271,8 @@ def _sign_user_media(user: Usuario) -> dict:
 
 def _build_profile(user: Usuario, current_user: Usuario | None, db: Session) -> dict:
     """Build a UserProfile dict with counts and viewer context."""
-    followers_count = db.query(followers).filter(followers.c.followed_id == user.id).count()
-    following_count = db.query(followers).filter(followers.c.follower_id == user.id).count()
+    followers_count = user.followers_count or 0
+    following_count = user.following_count or 0
     is_following = False
     is_own = False
     if current_user:
@@ -236,6 +282,10 @@ def _build_profile(user: Usuario, current_user: Usuario | None, db: Session) -> 
                 followers.c.follower_id == current_user.id,
                 followers.c.followed_id == user.id
             ).count() > 0
+
+    # Calculate total likes across all posts (Optionally denormalize this too later)
+    from app.models.models import Publicacion, Like
+    total_likes = db.query(func.sum(Publicacion.likes_count)).filter(Publicacion.usuario_id == user.id).scalar() or 0
 
     media = _sign_user_media(user)
     return {
@@ -258,6 +308,9 @@ def _build_profile(user: Usuario, current_user: Usuario | None, db: Session) -> 
         "genres": user.genres or [],
         "subgenres": user.subgenres or [],
         "pinned_posts": user.pinned_posts or [],
+        "total_likes": total_likes,
+        "accent_color": getattr(user, "accent_color", None),
+        "profile_sections": (user.settings or {}).get("profile_sections", {}),
         "is_following": is_following,
         "is_own_profile": is_own,
     }
@@ -307,6 +360,8 @@ def update_profile(
     saved_visibility: Optional[str] = Form(None),
     is_private: Optional[bool] = Form(None),
     tipo_usuario: Optional[str] = Form(None),
+    accent_color: Optional[str] = Form(None),
+    profile_sections: Optional[str] = Form(None),
 ):
     """Update profile text fields, social links, and genres."""
     import json
@@ -320,6 +375,20 @@ def update_profile(
     if saved_visibility is not None: current_user.saved_visibility = saved_visibility
     if is_private is not None: current_user.is_private = is_private
     if tipo_usuario is not None: current_user.tipo_usuario = tipo_usuario
+    if accent_color is not None and current_user.verified_type != "none":
+        current_user.accent_color = accent_color
+    
+    if profile_sections is not None:
+        try:
+            sections_data = json.loads(profile_sections)
+            if not current_user.settings:
+                current_user.settings = {}
+            current_user.settings["profile_sections"] = sections_data
+            # Force SQLAlchemy to detect change in JSON
+            from sqlalchemy.orm.attributes import flag_modified
+            flag_modified(current_user, "settings")
+        except:
+            pass
     if genres is not None:
         try: current_user.genres = json.loads(genres)
         except: pass
@@ -508,43 +577,16 @@ def get_user_saved(
 # ─── Follow / Social ───────────────────────────────────────────────────────────
 
 @router.post("/{user_id}/follow", response_model=social_schemas.FollowStats)
-def toggle_follow(
+async def toggle_follow(
     user_id: int,
     db: Session = Depends(deps.get_db),
     current_user: Usuario = Depends(deps.get_current_user),
 ):
-    if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="No puedes seguirte a ti mismo")
-    user_to_follow = db.query(Usuario).filter(Usuario.id == user_id).first()
-    if not user_to_follow:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    is_following = db.query(followers).filter(
-        followers.c.follower_id == current_user.id,
-        followers.c.followed_id == user_id
-    ).count() > 0
-
-    if is_following:
-        current_user.following.remove(user_to_follow)
-        result = False
-    else:
-        current_user.following.append(user_to_follow)
-        result = True
-    db.commit()
-
-    if result:
-        try:
-            asyncio.create_task(ws_notify(
-                user_id=user_id,
-                notification_type="NEW_FOLLOWER",
-                data={"follower_name": current_user.username, "follower_id": current_user.id}
-            ))
-        except Exception:
-            pass
-
-    followers_count = db.query(followers).filter(followers.c.followed_id == user_id).count()
-    following_count = db.query(followers).filter(followers.c.follower_id == user_id).count()
-    return {"followers_count": followers_count, "following_count": following_count, "is_following": result}
+    service = SocialService(db)
+    result = await service.toggle_follow(current_user.id, user_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @router.get("/{user_id}/followers", response_model=List[user_schemas.User])
@@ -562,6 +604,107 @@ def get_following(user_id: int, db: Session = Depends(deps.get_db)):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user.following
 
+@router.get("/{user_id}/stats", response_model=social_schemas.FollowStats)
+def get_user_stats(
+    user_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Optional[Usuario] = Depends(deps.get_current_user_optional),
+):
+    from app.models.models import followers
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    is_following = False
+    if current_user:
+        is_following = db.query(followers).filter(
+            followers.c.follower_id == current_user.id,
+            followers.c.followed_id == user_id
+        ).first() is not None
+
+    return {
+        "is_following": is_following,
+        "followers_count": user.followers_count or 0,
+        "following_count": user.following_count or 0
+    }
+
+# ─── Password & security ──────────────────────────────────────────────────────────
+
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: constr(min_length=8)
+
+@router.post("/me/change-password")
+def change_password(
+    data: PasswordChange,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    if not security.verify_password(data.old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+    
+    current_user.password_hash = security.get_password_hash(data.new_password)
+    # Revoke all other sessions for safety?
+    db.query(SesionUsuario).filter(SesionUsuario.usuario_id == current_user.id).update({"is_active": False})
+    
+    db.commit()
+    return {"msg": "Contraseña actualizada exitosamente. Se han cerrado las demás sesiones por seguridad."}
+
+
+# ─── Session Management ────────────────────────────────────────────────────────
+
+@router.get("/me/sessions")
+def list_sessions(
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """List active devices/sessions."""
+    sessions = db.query(SesionUsuario).filter(
+        SesionUsuario.usuario_id == current_user.id,
+        SesionUsuario.is_active == True
+    ).order_by(SesionUsuario.last_activity.desc()).all()
+    
+    return [
+        {
+            "id": s.id,
+            "device": s.device_name,
+            "ip": s.ip_address,
+            "last_activity": s.last_activity,
+            "location": s.location,
+            "is_current": False # Logic to compare with current JTI could be added if needed
+        }
+        for s in sessions
+    ]
+
+@router.delete("/me/sessions/{session_id}")
+def revoke_session(
+    session_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Log out a specific device remotely."""
+    session = db.query(SesionUsuario).filter(
+        SesionUsuario.id == session_id,
+        SesionUsuario.usuario_id == current_user.id
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    
+    session.is_active = False
+    db.commit()
+    return {"msg": "Sesión cerrada exitosamente"}
+
+@router.delete("/me/sessions")
+def revoke_all_sessions(
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_user),
+):
+    """Log out from all devices except possibly the current one (not implemented here for simplicity)."""
+    db.query(SesionUsuario).filter(SesionUsuario.usuario_id == current_user.id).update({"is_active": False})
+    db.commit()
+    return {"msg": "Todas las sesiones han sido cerradas"}
+
 
 @router.get("/{user_id}/stats", response_model=social_schemas.FollowStats)
 def get_user_social_stats(
@@ -569,14 +712,150 @@ def get_user_social_stats(
     db: Session = Depends(deps.get_db),
     current_user: Optional[Usuario] = Depends(deps.get_current_user_optional),
 ):
-    followers_count = db.query(followers).filter(followers.c.followed_id == user_id).count()
-    following_count = db.query(followers).filter(followers.c.follower_id == user_id).count()
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
     is_following = False
     if current_user:
         is_following = db.query(followers).filter(
             followers.c.follower_id == current_user.id,
             followers.c.followed_id == user_id
         ).count() > 0
-    return {"followers_count": followers_count, "following_count": following_count, "is_following": is_following}
+        
+    return {
+        "followers_count": user.followers_count or 0,
+        "following_count": user.following_count or 0,
+        "is_following": is_following
+    }
+
+@router.get("/me/analytics")
+def get_my_analytics(
+    db: Session = Depends(deps.get_db),
+    current_user: Usuario = Depends(deps.get_current_active_user),
+):
+    """
+    Get aggregated analytics for the producer.
+    """
+    from app.models.models import Publicacion, Transaccion, Reproduccion
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    # 1. Total Metrics
+    total_plays = db.query(func.sum(Publicacion.plays)).filter(Publicacion.usuario_id == current_user.id).scalar() or 0
+    total_sales = db.query(func.count(Transaccion.id)).filter(Transaccion.vendedor_id == current_user.id).scalar() or 0
+    
+    # Unique Listeners (Total Spectators)
+    unique_listeners = db.query(func.count(func.distinct(Reproduccion.usuario_id))).join(Publicacion).filter(
+        Publicacion.usuario_id == current_user.id
+    ).scalar() or 0
+
+    # 2. Daily Trends (Last 7 days)
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    plays_trend = db.query(
+        func.date(Reproduccion.fecha).label('date'),
+        func.count(Reproduccion.id).label('count')
+    ).join(Publicacion).filter(
+        Publicacion.usuario_id == current_user.id,
+        Reproduccion.fecha >= seven_days_ago
+    ).group_by(func.date(Reproduccion.fecha)).all()
+
+    # 3. Top Tracks
+    top_tracks = db.query(
+        Publicacion.id,
+        Publicacion.titulo,
+        Publicacion.plays
+    ).filter(Publicacion.usuario_id == current_user.id).order_by(Publicacion.plays.desc()).limit(5).all()
+
+    # Sales Trend (Last 7 days)
+    sales_trend = db.query(
+        func.date(Transaccion.fecha).label('date'),
+        func.count(Transaccion.id).label('count')
+    ).filter(
+        Transaccion.vendedor_id == current_user.id,
+        Transaccion.fecha >= seven_days_ago
+    ).group_by(func.date(Transaccion.fecha)).all()
+
+    # 4. Audience Segmentation (Demographics & Retention)
+    # Fetch all users who reproduced content
+    audience_users = db.query(Usuario).join(Reproduccion, Reproduccion.usuario_id == Usuario.id).join(Publicacion).filter(
+        Publicacion.usuario_id == current_user.id
+    ).all()
+
+    # Genders
+    gender_counts = {"Hombres": 0, "Mujeres": 0, "No binario/Otros": 0}
+    for u in audience_users:
+        if u.gender == "Male": gender_counts["Hombres"] += 1
+        elif u.gender == "Female": gender_counts["Mujeres"] += 1
+        else: gender_counts["No binario/Otros"] += 1
+    
+    total_audience = len(audience_users) or 1
+    gender_dist = [{"label": k, "value": round((v / total_audience) * 100)} for k, v in gender_counts.items()]
+
+    # Age Groups
+    age_bins = {"13-17": 0, "18-24": 0, "25-34": 0, "35+": 0}
+    now = datetime.utcnow()
+    for u in audience_users:
+        if u.birthdate:
+            age = (now - u.birthdate).days // 365
+            if age <= 17: age_bins["13-17"] += 1
+            elif age <= 24: age_bins["18-24"] += 1
+            elif age <= 34: age_bins["25-34"] += 1
+            else: age_bins["35+"] += 1
+    age_dist = [{"label": k, "value": round((v / total_audience) * 100)} for k, v in age_bins.items()]
+
+    # Countries
+    country_counts = {}
+    for u in audience_users:
+        c = u.country or "Otros"
+        country_counts[c] = country_counts.get(c, 0) + 1
+    top_locations = sorted([{"country": k, "value": round((v / total_audience) * 100)} for k, v in country_counts.items()], key=lambda x: x["value"], reverse=True)[:5]
+
+    # Retention: Recurring vs New
+    # A user is recurring if they have Reproduccion records for this producer on different days
+    recurring_count = db.query(func.count(func.distinct(Reproduccion.usuario_id))).join(Publicacion).filter(
+        Publicacion.usuario_id == current_user.id
+    ).group_by(Reproduccion.usuario_id).having(func.count(Reproduccion.id) > 1).count()
+    
+    new_count = max(0, unique_listeners - recurring_count)
+    retention = {
+        "new": round((new_count / max(1, unique_listeners)) * 100),
+        "recurring": round((recurring_count / max(1, unique_listeners)) * 100)
+    }
+
+    # Subscription: Followers vs Not Following
+    follower_ids = [f.id for f in current_user.followers]
+    followed_audience_count = sum(1 for u in audience_users if u.id in follower_ids)
+    not_followed_count = max(0, total_audience - followed_audience_count)
+
+    subscription = {
+        "following": round((followed_audience_count / total_audience) * 100),
+        "not_following": round((not_followed_count / total_audience) * 100)
+    }
+
+    return {
+        "kpis": {
+            "total_plays": float(total_plays),
+            "total_sales": total_sales,
+            "followers": current_user.followers_count
+        },
+        "trends": [
+            {"date": str(t.date), "count": t.count} for t in plays_trend
+        ],
+        "top_tracks": [
+            {"id": t.id, "title": t.titulo, "plays": t.plays} for t in top_tracks
+        ],
+        "sales_trend": [
+            {"date": str(t.date), "count": t.count} for t in sales_trend
+        ],
+        "audience": {
+            "total_spectators": unique_listeners,
+            "retention": retention,
+            "subscription": subscription,
+            "gender": gender_dist,
+            "age_range": age_dist,
+            "locations": top_locations
+        }
+    }
 
 

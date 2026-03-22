@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core import security
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.models.models import Usuario
+from app.models.models import Usuario, SesionUsuario
 from app.schemas import token as token_schemas
 
 reusable_oauth2 = OAuth2PasswordBearer(
@@ -37,6 +37,23 @@ def get_current_user(
     user = db.query(Usuario).filter(Usuario.id == int(token_data.sub)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+        
+    # Security check: Session must be active
+    if token_data.jti:
+        session = db.query(SesionUsuario).filter(
+            SesionUsuario.token_jti == token_data.jti,
+            SesionUsuario.usuario_id == user.id,
+            SesionUsuario.is_active == True
+        ).first()
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sesión expirada o cerrada remotamente"
+            )
+        # Optional: update last activity
+        session.last_activity = datetime.utcnow()
+        db.commit()
+        
     return user
 
 reusable_oauth2_optional = OAuth2PasswordBearer(

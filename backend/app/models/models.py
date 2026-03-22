@@ -30,11 +30,21 @@ class Usuario(Base):
     fecha_registro = Column(DateTime, default=datetime.utcnow)
     stripe_account_id = Column(String, nullable=True)
     mp_account_id = Column(String, nullable=True)
+    paypal_email = Column(String, nullable=True)
+    usdt_address = Column(String, nullable=True)
     country = Column(String, default="US")
+    gender = Column(String, nullable=True) # "Male", "Female", "Non-binary", etc.
     profile_views = Column(Integer, default=0)
     phone = Column(String, nullable=True)
     birthdate = Column(DateTime, nullable=True)
     is_private = Column(Boolean, default=False)
+    
+    # Denormalized counters
+    followers_count = Column(Integer, default=0)
+    following_count = Column(Integer, default=0)
+    
+    # Financial
+    wallet_balance = Column(Float, default=0.0)
 
     # Social links
     website = Column(String, nullable=True)
@@ -51,11 +61,15 @@ class Usuario(Base):
     verified_type = Column(String, default="none")  # none, subscription, official
     saved_visibility = Column(String, default="public")  # public, private
     pinned_posts = Column(JSON, default=[])  # list of post IDs (max 3)
+    accent_color = Column(String, nullable=True)  # Hex color for VIP users
 
     # Auth & Profile Fields
     provider = Column(String, default="email")
     provider_id = Column(String, nullable=True, index=True)
     is_verified = Column(Boolean, default=False)
+    verification_token = Column(String, nullable=True, index=True)
+    reset_password_token = Column(String, nullable=True, index=True)
+    reset_password_expire = Column(DateTime, nullable=True)
     account_status = Column(String, default="active")
     tipo_usuario = Column(String, default="Oyente")
 
@@ -65,6 +79,9 @@ class Usuario(Base):
             "recommend_account": True, "sync_contacts": False,
             "allow_reuse": True, "allow_download": False,
             "show_followers": True, "show_activity": True
+        },
+        "profile_sections": {
+            "stats": False, "beats": True, "songs": True, "collabs": True, "saved": True
         },
         "notifications": {
             "push": {"sales": True, "followers": True, "comments": True},
@@ -83,6 +100,8 @@ class Usuario(Base):
     comentarios = relationship("Comentario", back_populates="usuario")
     guardados = relationship("Guardado", back_populates="usuario")
     colaboraciones = relationship("PostColaboracion", back_populates="usuario", foreign_keys="PostColaboracion.usuario_id")
+    sesiones = relationship("SesionUsuario", back_populates="usuario", cascade="all, delete-orphan")
+    notificaciones = relationship("Notificacion", back_populates="usuario", cascade="all, delete-orphan")
 
     following = relationship(
         'Usuario', secondary=followers,
@@ -130,6 +149,11 @@ class Publicacion(Base):
     plays = Column(Integer, default=0)
     views = Column(Integer, default=0)
     
+    # Denormalized counters
+    likes_count = Column(Integer, default=0)
+    comments_count = Column(Integer, default=0)
+    saves_count = Column(Integer, default=0)
+    
     # Campo para link externo (obligatorio si no es contenido propio)
     link_externo = Column(String, nullable=True)
     
@@ -168,6 +192,7 @@ class Publicacion(Base):
     likes = relationship("Like", back_populates="publicacion")
     comentarios = relationship("Comentario", back_populates="publicacion")
     guardados = relationship("Guardado", back_populates="publicacion")
+    reproducciones = relationship("Reproduccion", back_populates="publicacion", cascade="all, delete-orphan")
 
 class Like(Base):
     __tablename__ = "likes"
@@ -301,3 +326,120 @@ class PostColaboracion(Base):
 
     publicacion = relationship("Publicacion", backref="colaboradores")
     usuario = relationship("Usuario", back_populates="colaboraciones", foreign_keys=[usuario_id])
+
+
+class Conversacion(Base):
+    __tablename__ = "conversaciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_message_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    mensajes = relationship("MensajeChat", back_populates="conversacion", cascade="all, delete-orphan")
+    participantes = relationship("ParticipanteConversacion", back_populates="conversacion", cascade="all, delete-orphan")
+
+
+class ParticipanteConversacion(Base):
+    __tablename__ = "participantes_conversacion"
+
+    id = Column(Integer, primary_key=True, index=True)
+    convo_id = Column(Integer, ForeignKey("conversaciones.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    unread_count = Column(Integer, default=0)
+    joined_at = Column(DateTime, default=datetime.utcnow)
+
+    conversacion = relationship("Conversacion", back_populates="participantes")
+    usuario = relationship("Usuario")
+
+
+class MensajeChat(Base):
+    __tablename__ = "mensajes_chat"
+
+    id = Column(Integer, primary_key=True, index=True)
+    convo_id = Column(Integer, ForeignKey("conversaciones.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    texto = Column(String, nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversacion = relationship("Conversacion", back_populates="mensajes")
+    sender = relationship("Usuario")
+
+class SesionUsuario(Base):
+    __tablename__ = "sesiones_usuario"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"))
+    token_jti = Column(String, unique=True, index=True) # ID único del JWT
+    device_name = Column(String, nullable=True) # e.g. "iPhone 13", "Windows Chrome"
+    device_type = Column(String, nullable=True) # mobile, desktop, tablet
+    ip_address = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    last_activity = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
+
+    usuario = relationship("Usuario", back_populates="sesiones")
+
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"))
+    tipo = Column(String)  # like, comment, follow, system, chat
+    data = Column(JSON, nullable=True) # Payload extra
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    usuario = relationship("Usuario", back_populates="notificaciones")
+
+class Retiro(Base):
+    __tablename__ = "retiros"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"))
+    monto = Column(Float, nullable=False)
+    metodo = Column(String) # stripe, mercadopago
+    estado = Column(String, default="pendiente") # pendiente, completado, fallido
+    fecha = Column(DateTime, default=datetime.utcnow)
+    completado_at = Column(DateTime, nullable=True)
+
+    usuario = relationship("Usuario")
+
+
+class Reproduccion(Base):
+    __tablename__ = "reproducciones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    publicacion_id = Column(Integer, ForeignKey("publicaciones.id", ondelete="CASCADE"))
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    fecha = Column(DateTime, default=datetime.utcnow)
+    ip_hash = Column(String, index=True)
+
+    publicacion = relationship("Publicacion", back_populates="reproducciones")
+    usuario = relationship("Usuario")
+
+# ─── Search Indexing Hooks ───────────────────────────────────────────────────
+from sqlalchemy import event
+from app.services.search import SearchService
+
+@event.listens_for(Publicacion, 'after_insert')
+def index_post_after_insert(mapper, connection, target):
+    SearchService.index_post(target)
+
+@event.listens_for(Publicacion, 'after_update')
+def index_post_after_update(mapper, connection, target):
+    SearchService.index_post(target)
+
+@event.listens_for(Publicacion, 'after_delete')
+def index_post_after_delete(mapper, connection, target):
+    SearchService.delete_post(target.id)
+
+@event.listens_for(Usuario, 'after_insert')
+def index_user_after_insert(mapper, connection, target):
+    SearchService.index_user(target)
+
+@event.listens_for(Usuario, 'after_update')
+def index_user_after_update(mapper, connection, target):
+    SearchService.index_user(target)

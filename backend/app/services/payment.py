@@ -56,15 +56,10 @@ class PaymentService:
         product_name: str,
         success_url: str,
         metadata: dict = {},
-        seller_mp_token: Optional[str] = None # Seller's access token if connected
+        collector_id: Optional[str] = None # Seller's MP ID if known
     ):
         try:
             if not mp: return None
-            
-            # Using Marketplace Split Payment
-            # Logic: We create the preference using the SELLER'S credentials (if full marketplace)
-            # OR we create it with OUR credentials and set 'marketplace_fee' (if handling funds aggregation)
-            # For simplicity in this MVP: We assume we are the aggregator and use 'marketplace_fee'
             
             preference_data = {
                 "items": [
@@ -77,14 +72,21 @@ class PaymentService:
                 ],
                 "back_urls": {
                     "success": success_url,
-                    "failure": success_url, # simplifying for MVP
+                    "failure": success_url,
                     "pending": success_url
                 },
                 "auto_return": "approved",
                 "metadata": metadata,
-                "marketplace_fee": price_amount * 0.07, # 7% fee
-                "notification_url": "https://api.musicdy.com/api/v1/payments/mp/webhook" # TODO: Needs real URL
+                "notification_url": "https://api.musicdy.com/api/v1/payments/mp/webhook",
+                # The fee we take (User requested 7%)
+                "marketplace_fee": float(price_amount * 0.07),
             }
+
+            # If we want the payment to go straight to seller (Connect-like)
+            if collector_id:
+                # Note: In a real MP implementation, this requires OAuth token
+                # For MVP demo purposes, we set metadata to track logic
+                preference_data["metadata"]["mp_collector_id"] = collector_id
 
             preference_response = mp.preference().create(preference_data)
             return preference_response["response"]

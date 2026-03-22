@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head>
+<meta charset="utf-8"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#FFD700",
+                        "neon-yellow": "#CCFF00",
+                        "background-light": "#ffffff",
+                        "background-dark": "#000000",
+                        "accent-purple": "#FFD700",
+                        "accent-green": "#CCFF00",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: "Space Grotesk", sans-serif;
+            background-color: #000000;
+        }
+        .neon-glow-primary {
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+        }
+        .neon-glow-neon {
+            box-shadow: 0 0 15px rgba(204, 255, 0, 0.4);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-background-dark text-slate-100 font-display">
+<div class="relative flex min-h-screen w-full flex-col max-w-md mx-auto overflow-x-hidden border-x border-slate-800 shadow-2xl bg-background-dark">
+<div class="flex items-center bg-background-dark p-4 pb-2 justify-between sticky top-0 z-50 border-b border-white/5">
+<div class="flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined text-slate-100" style="">arrow_back</span>
+</div>
+<h2 class="text-slate-100 text-lg font-bold leading-tight tracking-tight flex-1 text-center uppercase tracking-widest" style="">Perfil de Creador</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex items-center justify-center rounded-xl h-10 w-10 bg-transparent text-slate-100" style="">
+<span class="material-symbols-outlined" style="">settings</span>
+</button>
+</div>
+</div>
+<div class="flex p-6 @container">
+<div class="flex w-full flex-col gap-6 items-center">
+<div class="flex gap-4 flex-col items-center">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-4 border-primary neon-glow-primary" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAqFVj4g47LyMVCMkthMbu8SOy7nuSlbe8e3dgaOD0R44CbIhHNBGapIAQ_SI0j26Bqa6siEBu3w1o71VkXEMYv1YB2bKYYuXL9Q_Sg8WfoO8tyoNwrdUTdeq-egrJvteicUtMs2-wvJOGQ-aQSHSWkBTWSC7vdWY4kCWT-TCF6R4A7DIAlW-DPJH5xcRxqW8B5vaNuuuEINZFpgRaocSIC8Mbh5BP3Kcy4eTYzhO5b4DxXnjTtu1RYquo-Z1rtto_oJjeXZM4dz3S5");'>
+</div>
+<div class="absolute bottom-1 right-1 bg-neon-yellow text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-lg" style="">
+<span class="material-symbols-outlined text-[12px] fill-1" style="">verified</span> PRO
+                        </div>
+</div>
+<div class="flex flex-col items-center justify-center text-center">
+<p class="text-slate-100 text-2xl font-bold leading-tight tracking-tight" style="">Johnny Drifter</p>
+<div class="flex items-center gap-2">
+<span class="text-primary text-sm font-semibold" style="">Creador Musicdy</span>
+<span class="text-slate-400" style="">•</span>
+<span class="text-slate-400 text-sm" style="">Los Angeles, CA</span>
+</div>
+</div>
+</div>
+<div class="flex w-full gap-3">
+<button class="flex-1 flex items-center justify-center rounded-xl h-12 bg-slate-800 text-slate-100 text-sm font-bold tracking-tight border border-slate-700 hover:bg-slate-700 transition-colors" style="">
+                        Editar Perfil
+                    </button>
+<button class="flex-1 flex items-center justify-center rounded-xl h-12 bg-primary text-black text-sm font-bold tracking-tight hover:opacity-90 transition-opacity neon-glow-primary" style="">
+<span class="material-symbols-outlined mr-2 text-[20px]" style="">share</span> Compartir
+                    </button>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap gap-3 px-4 py-3">
+<div class="flex min-w-[100px] flex-1 flex-col gap-1 rounded-xl border border-slate-800 bg-white/5 p-4 items-center text-center">
+<p class="text-primary text-xl font-bold" style="">12.5K</p>
+<p class="text-slate-400 text-xs font-medium uppercase tracking-widest" style="">Seguidores</p>
+</div>
+<div class="flex min-w-[100px] flex-1 flex-col gap-1 rounded-xl border border-slate-800 bg-white/5 p-4 items-center text-center">
+<p class="text-primary text-xl font-bold" style="">450</p>
+<p class="text-slate-400 text-xs font-medium uppercase tracking-widest" style="">Seguidos</p>
+</div>
+<div class="flex min-w-[100px] flex-1 flex-col gap-1 rounded-xl border border-primary/30 bg-primary/5 p-4 items-center text-center">
+<p class="text-primary text-xl font-bold" style="">1.2K</p>
+<p class="text-slate-400 text-xs font-medium uppercase tracking-widest" style="">Beats Vendidos</p>
+</div>
+</div>
+<div class="mt-4">
+<div class="flex border-b border-slate-800 px-4 justify-between sticky top-16 bg-background-dark z-40 overflow-x-auto hide-scrollbar">
+<a class="flex flex-col items-center justify-center border-b-2 border-primary text-slate-100 pb-3 pt-4 px-3 flex-1 min-w-fit whitespace-nowrap" href="#" style="">
+<p class="text-xs font-bold uppercase tracking-wider" style="">Mis Beats</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-slate-500 pb-3 pt-4 px-3 flex-1 min-w-fit whitespace-nowrap" href="#" style="">
+<p class="text-xs font-bold uppercase tracking-wider" style="">Subidas</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-slate-500 pb-3 pt-4 px-3 flex-1 min-w-fit whitespace-nowrap" href="#" style="">
+<p class="text-xs font-bold uppercase tracking-wider" style="">Colaboraciones</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-2 border-transparent text-slate-500 pb-3 pt-4 px-3 flex-1 min-w-fit whitespace-nowrap" href="#" style="">
+<p class="text-xs font-bold uppercase tracking-wider" style="">Info</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-4 p-4 pb-24">
+<div class="flex items-center justify-between mb-2">
+<h3 class="text-slate-100 font-bold text-lg" style="">Pistas Principales</h3>
+<span class="text-primary text-sm font-medium" style="">Ver todos</span>
+</div>
+<div class="flex gap-4 p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-sm items-center">
+<div class="relative size-16 shrink-0 overflow-hidden rounded-lg bg-slate-800">
+<div class="absolute inset-0 bg-cover bg-center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCNXQ6Veb8YEVZ9TjGt3RohpOLYfEhuJmwIlTQbsMclG7pseoFrTzk63bX6ZglIz51UO_RHGMwNzmWfhiiXFssvt5iTI7kGBYHHz3PMP1MaceuHHlHrSueuG6GghzDbFOnJmFQHMv57lbwdauLMDnavRodLcBz8LUBSMhqB-AX7_stN9rpc62mYhZmHGqtjA45FX7iw6TbEI41-uAuzQeYtaY4ZAEmkH7ASo5UN45QQw96HyVGnd_M764yZmnmEDayFnQDjxpRT2D3B");'></div>
+<div class="absolute inset-0 flex items-center justify-center bg-black/40">
+<span class="material-symbols-outlined text-white fill-1" style="">play_arrow</span>
+</div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-slate-100 font-bold truncate" style="">Neon Nightshift</p>
+<p class="text-slate-400 text-xs font-medium uppercase tracking-tight" style="">142 BPM • Trap</p>
+</div>
+<div class="flex flex-col items-end gap-1">
+<p class="text-primary font-bold text-sm" style="">$29.99</p>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-slate-400 text-[18px]" style="">favorite</span>
+<span class="material-symbols-outlined text-slate-400 text-[18px]" style="">shopping_cart</span>
+</div>
+</div>
+</div>
+<div class="flex gap-4 p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-sm items-center">
+<div class="relative size-16 shrink-0 overflow-hidden rounded-lg bg-slate-800">
+<div class="absolute inset-0 bg-cover bg-center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCJjnr5onvCyoIjJj0QX3gKpKooGkM0DMcYEjMzOtuisX2yZAQ8Nz7WTsJkfV3aZV1rpXnzVId0XMNPcVrOBT40q0-j9Mg5Rntv1sIeV124mXvDU1kITD2bLbT66DB5S4rNnW28e_Qahr-XTpkseYnJTMYoBKH8JLuyY5Pm_Zc4yhe-YAQxJz3RqKs3MCNaj1HDcnVYo9PWe_A4QHuEdRY88EZsXIXNgsd56ZGLp7Ezt1kuIZZoPhAb_MXLUC5IXyb5vVCDUYLdZStc");'></div>
+<div class="absolute inset-0 flex items-center justify-center bg-black/40">
+<span class="material-symbols-outlined text-white fill-1" style="">play_arrow</span>
+</div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-slate-100 font-bold truncate" style="">Drift King V2</p>
+<p class="text-slate-400 text-xs font-medium uppercase tracking-tight" style="">95 BPM • Lo-Fi</p>
+</div>
+<div class="flex flex-col items-end gap-1">
+<p class="text-primary font-bold text-sm" style="">$19.99</p>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-slate-400 text-[18px]" style="">favorite</span>
+<span class="material-symbols-outlined text-slate-400 text-[18px]" style="">shopping_cart</span>
+</div>
+</div>
+</div>
+<div class="flex gap-4 p-3 rounded-xl bg-slate-900 border border-slate-800 shadow-sm items-center">
+<div class="relative size-16 shrink-0 overflow-hidden rounded-lg bg-slate-800">
+<div class="absolute inset-0 bg-cover bg-center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDVSYbhUGG0l4ol7uLHMFrft7ZM1HLSahYAU21ELJUc3nUSY5g5yxdR9uA1o_Y-lgojVCNpD1ZXR6W08C4yMWy77VxikcOuqROtLA-3fc3GMYef1Z4D2NGWlyRPOm4grKJI-Aqzyir2l9D8FMObiqPrsbCXvcmxXmSim3cypfg7lBggO0wHkp2xy60n0YBFKrkEp7foESJQYD6Z2hr52APTayt7SLOwhJGbsN5DVpfSfeInSjMQaRaVC-F4x5M8pK2b2sBMAYX2sfRj");'></div>
+<div class="absolute inset-0 flex items-center justify-center bg-black/40">
+<span class="material-symbols-outlined text-white fill-1" style="">play_arrow</span>
+</div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<p class="text-slate-100 font-bold truncate" style="">Cyber Phonk</p>
+<p class="text-slate-400 text-xs font-medium uppercase tracking-tight" style="">160 BPM • Phonk</p>
+</div>
+<div class="flex flex-col items-end gap-1">
+<p class="text-primary font-bold text-sm" style="">$34.99</p>
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-slate-400 text-[18px]" style="">favorite</span>
+<span class="material-symbols-outlined text-slate-400 text-[18px]" style="">shopping_cart</span>
+</div>
+</div>
+</div>
+<div class="flex justify-center gap-6 mt-6 py-4 border-t border-slate-800">
+<a class="text-slate-400 hover:text-primary transition-colors" href="#" style="">
+<svg class="w-6 h-6 fill-current" viewbox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"></path></svg>
+</a>
+<a class="text-slate-400 hover:text-primary transition-colors" href="#" style="">
+<svg class="w-6 h-6 fill-current" viewbox="0 0 24 24"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.84 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"></path></svg>
+</a>
+<a class="text-slate-400 hover:text-primary transition-colors" href="#" style="">
+<span class="material-symbols-outlined text-[28px]" style="">language</span>
+</a>
+</div>
+</div>
+<div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md border-t border-slate-800 bg-background-dark px-4 pb-4 pt-2 flex gap-2 z-50">
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#" style="">
+<span class="material-symbols-outlined" style="">home</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight" style="">Inicio</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#" style="">
+<span class="material-symbols-outlined" style="">search</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight" style="">Explorar</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#" style="">
+<div class="bg-primary p-2 rounded-full -mt-6 shadow-lg shadow-primary/40 border-4 border-black">
+<span class="material-symbols-outlined text-black" style="">add</span>
+</div>
+<p class="text-[10px] font-medium leading-normal tracking-tight" style="">Crear</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#" style="">
+<span class="material-symbols-outlined" style="">account_balance_wallet</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight" style="">Billetera</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-primary" href="#" style="">
+<span class="material-symbols-outlined fill-1" style="">person</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight" style="">Perfil</p>
+</a>
+</div>
+</div>
+</body></html>

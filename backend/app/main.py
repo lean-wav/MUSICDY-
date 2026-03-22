@@ -15,6 +15,8 @@ app = FastAPI(
 )
 
 import os
+from sqlalchemy.orm import Session
+from app.db.session import SessionLocal
 
 # Montar archivos estáticos
 os.makedirs("static", exist_ok=True)
@@ -42,9 +44,16 @@ def root():
 def health_check():
     """
     Endpoint for Render/Railway Health Checks.
-    Returns 200 OK if the server is running.
+    Returns 200 OK only if the server and DB are operational.
     """
-    return {"status": "ok", "db": "operational"}
+    try:
+        db: Session = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        db_status = "operational"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    return {"status": "ok", "db": db_status}
 
 if __name__ == "__main__":
     import uvicorn

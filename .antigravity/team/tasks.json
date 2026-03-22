@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Definir Arquitectura Core",
+      "status": "PENDING",
+      "plan_approved": false,
+      "assigned_to": "Arquitecto",
+      "dependencies": []
+    },
+    {
+      "id": 2,
+      "title": "Implementar Base de Datos",
+      "status": "PENDING",
+      "plan_approved": false,
+      "assigned_to": "Especialista",
+      "dependencies": []
+    },
+    {
+      "id": 3,
+      "title": "Dise\u00f1o de Landing Page",
+      "status": "PENDING",
+      "plan_approved": false,
+      "assigned_to": "Marketer",
+      "dependencies": []
+    }
+  ],
+  "members": []
+}

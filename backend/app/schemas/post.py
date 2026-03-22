@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 from pydantic import BaseModel, HttpUrl
@@ -50,6 +50,8 @@ class PublicacionResponse(BaseModel):
     archivo_original: Optional[str] = None
     archivo_preview_hq: Optional[str] = None
     archivo_preview_stream: Optional[str] = None
+    cover_url: Optional[str] = None
+    visual_loop_url: Optional[str] = None
     status: str = "ready"
     tipo_contenido: TipoContenido
     genero_musical: GeneroMusical
@@ -57,7 +59,15 @@ class PublicacionResponse(BaseModel):
     likes_count: int = 0
     comentarios_count: int = 0
     guardados_count: int = 0
+    plays: int = 0
     fecha_subida: datetime
+    licencias: Optional[Any] = None
+    precio: Optional[float] = None # USD Base price
+    precio_ars: Optional[float] = None # ARS Base price
+    
+    # Interaction controls
+    permitir_remix: bool = True
+    permitir_descarga_gratuita: bool = False
     
     # Specific fields
     free_use: Optional[bool] = None

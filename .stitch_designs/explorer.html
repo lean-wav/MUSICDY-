@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Musicdy - Explore Beats</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            primary: '#FFD131', // Branded Yellow from image
+                            secondary: '#CCFF00',
+                            dark: '#000000',    
+                            card: '#0F0F0F',    
+                            surface: '#1A1A1A'  
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0A0A0B;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 10px;
+        }
+        .glass-effect {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .genre-card {
+            aspect-ratio: 16/9;
+            background-size: cover;
+            background-position: center;
+        }
+    </style>
+</head>
+<body class="bg-brand-dark text-gray-100 font-sans antialiased min-h-screen pb-56">
+<header class="sticky top-0 z-50 glass-effect border-b border-white/5 p-4" data-purpose="main-navigation">
+<div class="flex flex-col gap-5">
+<div class="flex items-center justify-between">
+<h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+<span class="w-2 h-8 bg-brand-primary rounded-full"></span>
+                    Explore
+                </h1>
+<div class="w-10 h-10 rounded-full bg-brand-surface border border-white/10 flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-gray-400">account_circle</span>
+</div>
+</div>
+<div class="relative group">
+<div class="absolute -inset-0.5 bg-gradient-to-r from-brand-primary/20 to-transparent rounded-2xl blur opacity-75 group-focus-within:opacity-100 transition duration-500"></div>
+<div class="relative flex gap-2">
+<div class="relative flex-grow">
+<span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-brand-primary text-xl">search</span>
+</span>
+<input class="block w-full pl-12 pr-4 py-4 bg-brand-surface border-none rounded-2xl text-sm focus:ring-2 focus:ring-brand-primary/50 placeholder-gray-400 text-white shadow-xl" placeholder="Find your next hit sound..." type="text"/>
+</div>
+<button class="bg-brand-surface px-4 rounded-2xl border border-white/5 active:scale-95 transition-transform flex items-center justify-center" data-purpose="filter-toggle">
+<span class="material-symbols-outlined text-brand-primary">tune</span>
+</button>
+</div>
+</div>
+</div>
+</header>
+<main class="py-6 space-y-8">
+<!-- Discover Genres/Moods -->
+<section class="px-4">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-xl font-bold tracking-tight">Browse by Mood</h2>
+<span class="text-[10px] text-brand-primary font-bold uppercase tracking-widest">All Moods</span>
+</div>
+<div class="flex overflow-x-auto gap-3 no-scrollbar py-2">
+<div class="flex-shrink-0 w-36 h-48 rounded-2xl overflow-hidden relative group cursor-pointer">
+<img alt="Melodic" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3iaqiAKmMzdZZLV-ZPIi4Zcx7cRmG0RJVmIHWw6mIiQ8M4Uixu3sVl8X8ceAdBsx4eT2FawYLHOtPNXgmvlqR9skcWr8LpS9QttCsqISvBeoeWWDThL_t_mLR7VMe18ntEHOdVLn-y2yho4SGYB3w1OUk1p-UeHkEGB-gD_84Ha-mex2KC9qENfD9Wl9bA2FiI3fE8GAU22rrh7-Zz9OSNTM7o72XEaJILdNd87xNX0uK3a_rjxsgvUrlx6HnJtH1L9Be6WQzPqiJ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<span class="absolute bottom-4 left-4 font-bold text-white">Melodic</span>
+</div>
+<div class="flex-shrink-0 w-36 h-48 rounded-2xl overflow-hidden relative group cursor-pointer border border-brand-primary/20">
+<img alt="Aggressive" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBElEcQcxo1Kg1SgCnt8_iDR4VJc-GQCKl-83gSI1_4_piIWdxawumnGzShYJp4fN5LLt2KO93Y6kq5kaCaKXtM0NrL-itAGbDozp6kFUwN6ifQ-l4iVxdoz2-mGZB9oJfbnQuHTqEFZyQe6Lu9_jf9dLHAE1oATD941BEcNWte_D8nX1L1z4Tk24AWgR45Q7Lo6MhKyYdgab9ggL8lwSgVv18Cx40ke3vS6a9LO4balwn0lljFNIr0jLMINFnBc6756fgAwYmvbaNT"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<span class="absolute bottom-4 left-4 font-bold text-white">Aggressive</span>
+</div>
+<div class="flex-shrink-0 w-36 h-48 rounded-2xl overflow-hidden relative group cursor-pointer">
+<img alt="Lofi" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEnFQyxsiAI0JcbKs7_zNYkAZMIWqueelQuFg6ULoW5X0Z_rNUpBjv70k34L8vxiI3D9oClLL7gWvat6W8XcmPr5L4-g4tjgoR6Ofr21W5jY6MnFwL7qvPPz0hv9Sx7p6-QFZ8nWkuB4RXA9r9v_cWdPbgHCtDRXN-7bsv0mEqYIuh4_ESmmU0-Gub29XhGEDQtkRrvZwVPHYpuHOsvYsLzI_UwVwenBb6ace3crlPHmDE6QeHMej-71sHc5TAzgbXWvc1mqXNh8vw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<span class="absolute bottom-4 left-4 font-bold text-white">Chill Lofi</span>
+</div>
+<div class="flex-shrink-0 w-36 h-48 rounded-2xl overflow-hidden relative group cursor-pointer">
+<img alt="Dark" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOsMsjmBVzZcEwTNgrplViFXTdow-8x6RVz24xfgFVL3eF2lLAVt_lyC8vP7vcEoE7nXm8ohqIW2Wq316yzfi_-O_ezxA9Gvz1qzo2RVZE2V_2acwJOIee0SO-L88tG8kmTg5-yeoB_s38MFTmtLfn_neReFlbpgOYpHmcCLW0c5YfLkMF-IahnjZMuEYCvK_Yc3KhFi3GXEVoxiDb8D4V1pGJg781tc2NntA46EnBML7HqA_r9nK1pSVN5aj7Q9U7ko6p40xKjw-_"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+<span class="absolute bottom-4 left-4 font-bold text-white">Dark Trap</span>
+</div>
+</div>
+</section>
+<!-- Artist Spotlight -->
+<section class="bg-brand-surface/30 py-6 border-y border-white/5">
+<div class="px-4 flex items-center justify-between mb-4">
+<h2 class="text-xl font-bold tracking-tight">Artist Spotlight</h2>
+<div class="flex gap-1">
+<div class="w-1 h-1 rounded-full bg-brand-primary"></div>
+<div class="w-1 h-1 rounded-full bg-white/20"></div>
+<div class="w-1 h-1 rounded-full bg-white/20"></div>
+</div>
+</div>
+<div class="flex overflow-x-auto gap-4 px-4 no-scrollbar">
+<div class="flex-shrink-0 flex items-center gap-4 bg-brand-card p-4 rounded-2xl border border-white/10 w-72">
+<div class="w-16 h-16 rounded-full overflow-hidden border-2 border-brand-primary">
+<img alt="Producer" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0F2CZPEmZOfqbowj0sKWv6AbOBDw345MukLNXuJ9h76E7zzvsEMyjI5WFqWwQh1kuNuXnLhlY4fsTBrHuOs89sI2kJ8DIa6fg6h_tSBBJRwsjfEYVIZ9qm02oIFzoGmn1-2EdUfjjuTq47p1gKr092tKGcIS0bfIxwi_kPnFz_Jk626fWn1xxKbKjdnUJmpJKirRz6GBcyJicK453RA_7D4neD5ompKaYPA9rWarUiW6qBgFdvkr5V2aLWMQFOXQ5NrilPyLmOvLo"/>
+</div>
+<div>
+<h4 class="font-bold text-white">Ghost Beats</h4>
+<p class="text-xs text-gray-500">12.4k Monthly Listeners</p>
+<button class="mt-2 text-[10px] bg-brand-primary text-black font-bold py-1 px-3 rounded-full">Follow</button>
+</div>
+</div>
+<div class="flex-shrink-0 flex items-center gap-4 bg-brand-card p-4 rounded-2xl border border-white/10 w-72">
+<div class="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10">
+<img alt="Producer" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD7G0uUlUwaIk0TxCufFaWreLqcgRAKjLm7SpbYRhqalP9vBhW8PEtOzJ5ddC_st7_U423TRiDXAGWJ7oM1-_qNdP9P2vzPHgC74M49Eb5EtGk_3cHLDST16-gIILDPdK2Kj-oChE9Cq4kJ0VzJjYemuC6pxMhUjx7ElPkWI5iQEM_rQrR8boFprV1imyezQyJBbQXhZctW8_c7esz2FNeHokKQaGw4MKXvAHSHeFfWH4O85CPHme-k7N5dArYaFIkGx2Xw2EE8G87a"/>
+</div>
+<div>
+<h4 class="font-bold text-white">Luna Wav</h4>
+<p class="text-xs text-gray-500">8.1k Monthly Listeners</p>
+<button class="mt-2 text-[10px] bg-white/10 text-white font-bold py-1 px-3 rounded-full border border-white/10">Follow</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Trending Beats -->
+<section class="px-4" id="beats-container">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-xl font-bold tracking-tight">Trending Beats</h2>
+<span class="text-xs text-brand-primary font-bold uppercase tracking-widest">View All</span>
+</div>
+<div class="grid grid-cols-1 gap-4">
+<!-- Beat Card 1 -->
+<div class="group relative flex bg-brand-card rounded-2xl overflow-hidden border border-white/5 p-3 items-center gap-4 transition-all active:bg-white/5" data-purpose="beat-card">
+<div class="relative flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden shadow-2xl">
+<img alt="Neon Nights Cover" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHZibnhaMFcq16k6V6vewUgq1R0Yba9mmc5NolaE82t1V6Pnd3VtuYXcmUV_a0hJkLGPJdvpg-i6HZOgMrcdBUZ3w-kv-_t-cvzOc07zzY4y8gcvWMijCth-YjvdOzXU44S2y5UaYEliUY41X1XFVKUaWdPtpl3CkmwuxyEkWpGbZ1eamejv2x7YWodoV7qV0-uddsbKleSND115Ydn5S4M8Oh02LGbjD5cUhuhHv9AbwxNIcZRXMpFiQvkDY-6TfqrVQ3huwS7uL3"/>
+<div class="absolute inset-0 flex items-center justify-center bg-black/40">
+<button class="w-10 h-10 bg-brand-primary rounded-full flex items-center justify-center text-black shadow-lg">
+<span class="material-symbols-outlined fill-[1] scale-110">play_arrow</span>
+</button>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<h3 class="text-white font-bold truncate text-lg">Neon Nights</h3>
+<p class="text-gray-500 text-sm truncate">Metro Boomin</p>
+<div class="flex items-center gap-3 mt-2">
+<span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">140 BPM</span>
+<span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">C Minor</span>
+<span class="text-sm text-brand-primary font-bold ml-auto">$29.99</span>
+</div>
+</div>
+</div>
+<!-- Beat Card 2 -->
+<div class="group relative flex bg-brand-card rounded-2xl overflow-hidden border border-white/5 p-3 items-center gap-4 transition-all" data-purpose="beat-card">
+<div class="relative flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden shadow-2xl">
+<img alt="Cold Steel Cover" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBLtdHGfGGOQVQQZvDVERC1o4HEYY64yhxzsCmX4C25LCAeO9uHDoPgDwtbRH17WV6XnOYb81eOaWWL4GmhHBVTIqywyMwmPZofNsZKsAH2buM2qPAKl4PH4-Nr2OkN56Fa0RIdAQoHBHz-7F9q9EAEKyGM6FfG8nDvFzQZlGJFu_n-jblYvcgu5fat-wcPedQ41iVjPjt445Iya1jtFYbEQ-qEaTP3Fpn81mV2ZFQFO7Xnn3wmQrw85z7uiSwCr0feHr5vwQy8jBxe"/>
+<div class="absolute inset-0 flex items-center justify-center bg-black/20">
+<button class="w-10 h-10 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center text-white">
+<span class="material-symbols-outlined">play_arrow</span>
+</button>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<h3 class="text-white font-bold truncate text-lg">Cold Steel</h3>
+<p class="text-gray-500 text-sm truncate">Murda Beatz</p>
+<div class="flex items-center gap-3 mt-2">
+<span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">128 BPM</span>
+<span class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">G# Major</span>
+<span class="text-sm text-brand-primary font-bold ml-auto">$34.99</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<div class="fixed bottom-0 left-0 right-0 z-50">
+<!-- Mini Player -->
+<div class="glass-effect border-t border-white/10 px-4 pt-3 pb-3 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]" data-purpose="mini-player">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-white/5">
+<img alt="Now Playing" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBoTFiowjdPe8fVuShJawTqgPWoPFb78Nt-Xn_FZk4cQABJv66ya6H_TCw32DDpaAI_vx-kbHMJ3T14rL3WxUCTPclv8hsMcJDahtK_ayI_B2_2adwo_BZy04dhoHKcIALQUBc4BgCnqTvlczyD50OEglrXhsPLKlMr9rX0RIf8pwS9uYLNduMXtQgCDxqShuO7u2_wcLVSPI93tSWbpoAX0ntobkd0iajs0bTnDBP_u1YCLpAkrALHl0jxjWQrAMfGqr0TCBR8RyFu"/>
+</div>
+<div class="flex-grow">
+<div class="text-sm font-bold text-white leading-tight">Neon Nights</div>
+<div class="text-[10px] text-gray-400 flex justify-between items-center mt-0.5">
+<span>Metro Boomin</span>
+<span class="text-brand-primary">1:45 / 3:20</span>
+</div>
+<div class="w-full bg-white/10 h-1 mt-1.5 rounded-full overflow-hidden">
+<div class="h-full w-[45%] bg-brand-primary"></div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="text-white flex items-center justify-center">
+<span class="material-symbols-outlined text-4xl fill-[1]">pause</span>
+</button>
+<button class="text-brand-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl fill-[1]">shopping_cart</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bottom Nav -->
+<nav class="bg-background-dark border-t border-slate-800 px-4 pb-4 pt-2 flex gap-2 z-50">
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined">home</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight">Inicio</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-brand-primary" href="#">
+<span class="material-symbols-outlined fill-1">explore</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight">Explorar</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#">
+<div class="bg-brand-primary p-2 rounded-full -mt-6 shadow-lg shadow-brand-primary/40 border-4 border-black">
+<span class="material-symbols-outlined text-black">add</span>
+</div>
+<p class="text-[10px] font-medium leading-normal tracking-tight">Crear</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight">Billetera</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined">person</span>
+<p class="text-[10px] font-medium leading-normal tracking-tight">Perfil</p>
+</a>
+</nav>
+</div>
+</body></html>
