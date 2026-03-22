@@ -56,18 +56,18 @@ class UserInDBBase(UserBase):
     foto_perfil: Optional[str] = None
     banner_image: Optional[str] = None
     nombre_artistico: Optional[str] = None
-    bio: str = ""
-    followers_count: int = 0
-    following_count: int = 0
-    sales_count: int = 0
-    total_plays: int = 0
+    bio: Optional[str] = ""
+    followers_count: Optional[int] = 0
+    following_count: Optional[int] = 0
+    sales_count: Optional[int] = 0
+    total_plays: Optional[int] = 0
     phone: Optional[str] = None
-    is_private: bool = False
+    is_private: Optional[bool] = False
     settings: Optional[dict] = None
-    provider: str = "email"
-    is_verified: bool = False
-    account_status: str = "active"
-    tipo_usuario: str = "Oyente"
+    provider: Optional[str] = "email"
+    is_verified: Optional[bool] = False
+    account_status: Optional[str] = "active"
+    tipo_usuario: Optional[str] = "Oyente"
     birthdate: Optional[str] = None
     # New fields
     website: Optional[str] = None
@@ -79,7 +79,7 @@ class UserInDBBase(UserBase):
     subgenres: Optional[List[str]] = None
     gender: Optional[str] = None
     # Financial & Payouts
-    wallet_balance: float = 0.0
+    wallet_balance: Optional[float] = 0.0
     stripe_account_id: Optional[str] = None
     mp_account_id: Optional[str] = None
     paypal_email: Optional[str] = None
@@ -104,14 +104,14 @@ class UserProfile(BaseModel):
     id: int
     username: str
     nombre_artistico: Optional[str] = None
-    bio: str = ""
+    bio: Optional[str] = ""
     foto_perfil: Optional[str] = None
     banner_image: Optional[str] = None
-    verified_type: str = "none"
-    total_plays: int = 0
-    followers_count: int = 0
-    following_count: int = 0
-    is_private: bool = False
+    verified_type: Optional[str] = "none"
+    total_plays: Optional[int] = 0
+    followers_count: Optional[int] = 0
+    following_count: Optional[int] = 0
+    is_private: Optional[bool] = False
     website: Optional[str] = None
     instagram: Optional[str] = None
     youtube: Optional[str] = None
@@ -120,12 +120,12 @@ class UserProfile(BaseModel):
     genres: Optional[List[str]] = None
     subgenres: Optional[List[str]] = None
     pinned_posts: Optional[List[int]] = None
-    total_likes: int = 0
+    total_likes: Optional[int] = 0
     accent_color: Optional[str] = None
     profile_sections: Optional[dict] = None
     # Viewer context (set at request time)
-    is_following: bool = False
-    is_own_profile: bool = False
+    is_following: Optional[bool] = False
+    is_own_profile: Optional[bool] = False
 
     class Config:
         from_attributes = True
