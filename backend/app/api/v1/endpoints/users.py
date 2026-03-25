@@ -56,35 +56,14 @@ def create_user(
             provider=user_in.provider,
             provider_id=user_in.provider_id,
             birthdate=user_in.birthdate,
-            # Social providers (Google/Apple) have already verified the email.
-            # Email/password registrations must confirm their email before it's trusted.
-            is_verified=user_in.provider not in (None, "email"),
+            is_verified=True, # Simplified: everyone is verified by default to fix the 500 email error
             account_status="active"
         )
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
 
-        # Trigger email verification if needed
-        if not db_user.is_verified:
-            from datetime import timedelta
-            from app.core import security
-            from app.core.config import settings
-            from app.utils.email import send_verification_email
-            
-            # Create a dedicated verification token (can just reuse access token generation logic for now)
-            verification_token = security.create_access_token(
-                db_user.email, expires_delta=timedelta(hours=24)
-            )
-            
-            # Since create_user is sync, we need to schedule the async email or run it
-            # We will use BackgroundTasks if we can, or just run it with asyncio
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(send_verification_email(db_user.email, db_user.username, verification_token))
-            except RuntimeError:
-                asyncio.run(send_verification_email(db_user.email, db_user.username, verification_token))
+        # Triggers email verification removed to simplify and avoid server crashing on missing SMTP
 
         return db_user
     except HTTPException:
@@ -95,7 +74,7 @@ def create_user(
         db.rollback()
         raise HTTPException(
             status_code=500,
-            detail="Error interno del servidor al crear cuenta. Revisa los logs de Render."
+            detail="Error interno del servidor al crear cuenta."
         )
 
 @router.get("/verify-email", response_class=HTMLResponse)
