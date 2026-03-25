@@ -38,21 +38,32 @@ async def check_auth_brute_force(username: str):
     """Specific check for login brute force."""
     if not redis_client: return
     
-    key = f"login_attempts:{username}"
-    attempts = redis_client.get(key)
-    if attempts and int(attempts) >= 5:
-        # Block for 15 minutes after 5 failed attempts
-        raise HTTPException(
-            status_code=403,
-            detail="Cuenta bloqueada temporalmente por seguridad. Intenta en 15 minutos."
-        )
+    try:
+        key = f"login_attempts:{username}"
+        attempts = redis_client.get(key)
+        if attempts and int(attempts) >= 5:
+            # Block for 15 minutes after 5 failed attempts
+            raise HTTPException(
+                status_code=403,
+                detail="Cuenta bloqueada temporalmente por seguridad. Intenta en 15 minutos."
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
 
 def register_auth_failure(username: str):
     if not redis_client: return
-    key = f"login_attempts:{username}"
-    redis_client.incr(key)
-    redis_client.expire(key, 900) # 15 min lock window
+    try:
+        key = f"login_attempts:{username}"
+        redis_client.incr(key)
+        redis_client.expire(key, 900) # 15 min lock window
+    except Exception:
+        pass
 
 def clear_auth_failures(username: str):
     if not redis_client: return
-    redis_client.delete(f"login_attempts:{username}")
+    try:
+        redis_client.delete(f"login_attempts:{username}")
+    except Exception:
+        pass

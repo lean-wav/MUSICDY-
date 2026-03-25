@@ -52,7 +52,7 @@ async def login_access_token(
         new_session = SesionUsuario(
             usuario_id=user.id,
             token_jti=jti,
-            ip_address=request.client.host,
+            ip_address=request.client.host if request.client else "127.0.0.1",
             device_name=request.headers.get("User-Agent", "Desconocido"),
             is_active=True
         )
@@ -113,7 +113,7 @@ async def login_provider(
     new_session = SesionUsuario(
         usuario_id=user.id,
         token_jti=jti,
-        ip_address=request.client.host,
+        ip_address=request.client.host if request.client else "127.0.0.1",
         device_name=request.headers.get("User-Agent", "Provider Login"),
         is_active=True
     )
