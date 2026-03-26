@@ -619,13 +619,58 @@ function BeatCarousel() {
   const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
   const [showOptions, setShowOptions] = useState(false);
   const [loading, setLoading] = useState(true);
-  const ambientColor = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const { user } = useAuthStore();
+  const [isPlaying, setIsPlaying] = useState(false);
 
-  // Pastel accent colors per-index
+  // Animated values for card positions
+  const cardOffsets = useRef<Animated.Value[]>([]).current;
+  const cardScales  = useRef<Animated.Value[]>([]).current;
+  const cardOpacities = useRef<Animated.Value[]>([]).current;
+  // Info slide + disc spin
+  const infoTranslate = useRef(new Animated.Value(0)).current;
+  const discRotate    = useRef(new Animated.Value(0)).current;
+  const discAnimRef   = useRef<Animated.CompositeAnimation | null>(null);
+
   const ACCENTS = ['#ff6b6b','#f97316','#3b82f6','#FFD700','#ec4899','#10b981','#8b5cf6','#06b6d4'];
 
+  // ── Audio ──────────────────────────────────────────────────────────────
+  const beat = beats[currentIndex];
+  const streamUri = beat ? (AppConfig.getFullMediaUrl((beat as any).archivo) || AppConfig.getFullMediaUrl((beat as any).archivo_original) || null) : null;
+  const audioPlayer = useAudioPlayer(streamUri ? { uri: streamUri } : null);
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
+
+  // Auto-stop when changing beat
+  useEffect(() => {
+    audioPlayer.pause();
+    setIsPlaying(false);
+  }, [currentIndex]);
+
+  // Disc spin while playing
+  useEffect(() => {
+    if (isPlaying) {
+      discAnimRef.current = Animated.loop(
+        Animated.timing(discRotate, { toValue: 1, duration: 4000, useNativeDriver: true })
+      );
+      discAnimRef.current.start();
+    } else {
+      discAnimRef.current?.stop();
+    }
+  }, [isPlaying]);
+
+  const discSpin = discRotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  const togglePlay = () => {
+    if (!streamUri) return;
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    if (audioStatus.playing) {
+      audioPlayer.pause();
+      setIsPlaying(false);
+    } else {
+      audioPlayer.play();
+      setIsPlaying(true);
+    }
+  };
+
+  // ── Data fetch ─────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchBeats = async () => {
       try {
@@ -633,175 +678,218 @@ function BeatCarousel() {
         const beatPosts = res.data.filter(p =>
           p.tipo_contenido !== 'video' && p.tipo_contenido !== 'for_you'
         );
-        setBeats(beatPosts.length ? beatPosts : res.data.slice(0, 20));
+        const list = beatPosts.length ? beatPosts : res.data.slice(0, 20);
+        setBeats(list);
         const counts: Record<number, number> = {};
-        beatPosts.forEach(b => { counts[b.id] = b.likes_count || 0; });
+        list.forEach(b => { counts[b.id] = b.likes_count || 0; });
         setLikeCounts(counts);
+        // Init per-card animated values
+        list.forEach((_, i) => {
+          cardOffsets.push(new Animated.Value(getStaticOffset(i, 0, list.length)));
+          cardScales.push(new Animated.Value(getStaticScale(i, 0, list.length)));
+          cardOpacities.push(new Animated.Value(getStaticOpacity(i, 0, list.length)));
+        });
       } catch {}
       setLoading(false);
     };
     fetchBeats();
   }, []);
 
+  // ── Position helpers ───────────────────────────────────────────────────
+  function normalizedPos(i: number, center: number, total: number) {
+    let d = i - center;
+    if (d > total / 2) d -= total;
+    if (d < -total / 2) d += total;
+    return d;
+  }
+  function getStaticOffset(i: number, center: number, total: number) {
+    const p = normalizedPos(i, center, total);
+    const map: Record<number, number> = { 0: 0, 1: 165, 2: 280, '-1': -165, '-2': -280 };
+    return map[p] ?? (p > 0 ? 400 : -400);
+  }
+  function getStaticScale(i: number, center: number, total: number) {
+    const p = Math.abs(normalizedPos(i, center, total));
+    return [1, 0.82, 0.65][p] ?? 0.4;
+  }
+  function getStaticOpacity(i: number, center: number, total: number) {
+    const p = Math.abs(normalizedPos(i, center, total));
+    return [1, 0.65, 0.35][p] ?? 0;
+  }
+
+  // ── Animated go ───────────────────────────────────────────────────────
   const go = (dir: 1 | -1) => {
+    const next = (currentIndex + dir + beats.length) % beats.length;
+    // Slide info text out then back
     Animated.sequence([
-      Animated.timing(slideAnim, { toValue: -dir * 40, duration: 100, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(infoTranslate, { toValue: dir * -60, duration: 100, useNativeDriver: true }),
+      Animated.timing(infoTranslate, { toValue: 0, duration: 200, useNativeDriver: true }),
     ]).start();
-    setCurrentIndex(i => (i + dir + beats.length) % beats.length);
+    // Spring-animate all cards
+    const anims = beats.map((_, i) => {
+      const targetX   = getStaticOffset(i, next, beats.length);
+      const targetSc  = getStaticScale(i, next, beats.length);
+      const targetOp  = getStaticOpacity(i, next, beats.length);
+      return Animated.parallel([
+        Animated.spring(cardOffsets[i],  { toValue: targetX,  useNativeDriver: true, tension: 70, friction: 12 }),
+        Animated.spring(cardScales[i],   { toValue: targetSc, useNativeDriver: true, tension: 70, friction: 12 }),
+        Animated.timing(cardOpacities[i],{ toValue: targetOp, duration: 200, useNativeDriver: true }),
+      ]);
+    });
+    Animated.parallel(anims).start();
+    setCurrentIndex(next);
   };
 
-  const handleLike = async (beat: BeatPost) => {
-    const prev = liked[beat.id] || false;
-    setLiked(l => ({ ...l, [beat.id]: !prev }));
-    setLikeCounts(c => ({ ...c, [beat.id]: (c[beat.id] || 0) + (prev ? -1 : 1) }));
+  // ── Likes ──────────────────────────────────────────────────────────────
+  const handleLike = async (b: BeatPost) => {
+    const prev = liked[b.id] || false;
+    setLiked(l => ({ ...l, [b.id]: !prev }));
+    setLikeCounts(c => ({ ...c, [b.id]: (c[b.id] || 0) + (prev ? -1 : 1) }));
     try {
-      const res = await apiClient.post(`/posts/${beat.id}/like`);
-      setLikeCounts(c => ({ ...c, [beat.id]: res.data.likes_count }));
-      setLiked(l => ({ ...l, [beat.id]: res.data.is_liked }));
+      const res = await apiClient.post(`/posts/${b.id}/like`);
+      setLikeCounts(c => ({ ...c, [b.id]: res.data.likes_count }));
+      setLiked(l => ({ ...l, [b.id]: res.data.is_liked }));
     } catch {
-      setLiked(l => ({ ...l, [beat.id]: prev }));
-      setLikeCounts(c => ({ ...c, [beat.id]: (c[beat.id] || 0) + (prev ? 1 : -1) }));
+      setLiked(l => ({ ...l, [b.id]: prev }));
+      setLikeCounts(c => ({ ...c, [b.id]: (c[b.id] || 0) + (prev ? 1 : -1) }));
     }
   };
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator color={GOLD} size="large" />
-      </View>
-    );
-  }
+  // ── Guard states ───────────────────────────────────────────────────────
+  if (loading) return (
+    <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator color={GOLD} size="large" />
+    </View>
+  );
+  if (!beats.length) return (
+    <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
+      <Ionicons name="musical-notes-outline" size={60} color="#333" />
+      <Text style={{ color: '#555', marginTop: 16, fontSize: 16 }}>No hay beats disponibles</Text>
+    </View>
+  );
 
-  if (!beats.length) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
-        <Ionicons name="musical-notes-outline" size={60} color="#333" />
-        <Text style={{ color: '#555', marginTop: 16, fontSize: 16 }}>No hay beats disponibles</Text>
-      </View>
-    );
-  }
-
-  const beat = beats[currentIndex];
   const accent = ACCENTS[currentIndex % ACCENTS.length];
-  const coverUri = AppConfig.getFullMediaUrl(beat.cover_url) || null;
+  const progress = audioStatus.duration ? audioStatus.currentTime / audioStatus.duration : 0;
 
-  const getPos = (i: number) => {
-    let d = i - currentIndex;
-    const n = beats.length;
-    if (d > n / 2) d -= n;
-    if (d < -n / 2) d += n;
-    return Math.max(-3, Math.min(3, d));
-  };
-
-  const cardStyle = (pos: number) => {
-    const configs: Record<number, object> = {
-      0:  { translateX: 0,    translateZ: 80,  rotateY: '0deg',   scale: 1,    opacity: 1 },
-      1:  { translateX: 165,  translateZ: -40, rotateY: '-28deg', scale: 0.82, opacity: 0.65 },
-      2:  { translateX: 280,  translateZ: -120,rotateY: '-38deg', scale: 0.65, opacity: 0.35 },
-      '-1':{ translateX: -165, translateZ: -40, rotateY: '28deg',  scale: 0.82, opacity: 0.65 },
-      '-2':{ translateX: -280, translateZ: -120,rotateY: '38deg',  scale: 0.65, opacity: 0.35 },
-    };
-    return configs[pos] || { opacity: 0, scale: 0.4 };
+  // ── Swipe tracking ────────────────────────────────────────────────────
+  let swipeStartX = 0;
+  const swipeHandlers = {
+    onStartShouldSetResponder: () => true,
+    onResponderGrant: (e: any) => { swipeStartX = e.nativeEvent.pageX; },
+    onResponderRelease: (e: any) => {
+      const dx = e.nativeEvent.pageX - swipeStartX;
+      if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+    },
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#050505' }}>
       {/* Ambient glow */}
       <View style={{
-        position: 'absolute', top: 80, left: '50%', marginLeft: -220,
-        width: 440, height: 440, borderRadius: 220,
-        backgroundColor: accent, opacity: 0.12, filter: undefined,
+        position: 'absolute', top: 40, left: '50%', marginLeft: -200,
+        width: 400, height: 400, borderRadius: 200,
+        backgroundColor: accent, opacity: 0.14,
       }} />
 
-      {/* Carousel area */}
-      <View
-        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', perspective: 1000 }}
-        {...(() => {
-          let swipeStart = 0;
-          return {
-            onStartShouldSetResponder: () => true,
-            onResponderGrant: (e: any) => { swipeStart = e.nativeEvent.pageX; },
-            onResponderRelease: (e: any) => {
-              const dx = e.nativeEvent.pageX - swipeStart;
-              if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
-            },
-          };
-        })()}
-      >
+      {/* Carousel */}
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} {...swipeHandlers}>
         {beats.map((b, i) => {
-          const pos = getPos(i);
-          if (Math.abs(pos) > 2) return null;
-          const cfg = cardStyle(pos) as any;
+          if (!cardOffsets[i]) return null;
           const bCover = AppConfig.getFullMediaUrl(b.cover_url) || null;
-          const isCenter = pos === 0;
+          const isCenter = i === currentIndex;
           return (
             <Animated.View
               key={b.id}
-              style={[{
+              style={{
                 position: 'absolute',
                 width: 240, height: 240, borderRadius: 20, overflow: 'hidden',
-                transform: [
-                  { translateX: cfg.translateX || 0 },
-                  { scale: cfg.scale || 1 },
-                ],
-                opacity: cfg.opacity || 0,
-                zIndex: 5 - Math.abs(pos),
+                transform: [{ translateX: cardOffsets[i] }, { scale: cardScales[i] }],
+                opacity: cardOpacities[i],
+                zIndex: isCenter ? 10 : 1,
                 shadowColor: isCenter ? accent : '#000',
-                shadowOffset: { width: 0, height: isCenter ? 20 : 5 },
-                shadowOpacity: isCenter ? 0.7 : 0.3,
-                shadowRadius: isCenter ? 30 : 8,
-                elevation: 5 - Math.abs(pos),
-              }]}
+                shadowOffset: { width: 0, height: isCenter ? 24 : 4 },
+                shadowOpacity: isCenter ? 0.8 : 0.3,
+                shadowRadius: isCenter ? 32 : 8,
+                elevation: isCenter ? 10 : 2,
+              }}
             >
               {bCover
                 ? <Image source={{ uri: bCover }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                 : (
-                  <View style={{
-                    flex: 1, alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: '#111',
-                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-                  }}>
-                    <Ionicons name="musical-note" size={80} color={ACCENTS[i % ACCENTS.length]} />
-                    <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, marginTop: 8, textAlign: 'center', paddingHorizontal: 12 }} numberOfLines={2}>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
+                    <Animated.View style={isCenter ? { transform: [{ rotate: discSpin }] } : undefined}>
+                      <Ionicons name="disc" size={90} color={ACCENTS[i % ACCENTS.length]} />
+                    </Animated.View>
+                    <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14, marginTop: 10, textAlign: 'center', paddingHorizontal: 12 }} numberOfLines={2}>
                       {b.titulo}
-                    </Text>
-                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 4 }}>
-                      {b.genero_musical?.toUpperCase()}
                     </Text>
                   </View>
                 )
               }
-              {/* Glass overlay */}
+              {/* Glass border */}
               <View style={{
-                ...StyleSheet.absoluteFillObject,
-                backgroundColor: 'rgba(255,255,255,0.04)',
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: isCenter ? `${accent}55` : 'rgba(255,255,255,0.06)',
+                ...StyleSheet.absoluteFillObject, borderRadius: 20,
+                borderWidth: 1.5,
+                borderColor: isCenter ? `${accent}88` : 'rgba(255,255,255,0.07)',
               }} />
+              {/* Play overlay on center card */}
+              {isCenter && (
+                <TouchableOpacity
+                  style={{ ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 12 }}
+                  activeOpacity={0.9}
+                  onPress={togglePlay}
+                >
+                  {audioStatus.isBuffering ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <View style={{
+                      width: 48, height: 48, borderRadius: 24,
+                      backgroundColor: 'rgba(0,0,0,0.55)',
+                      justifyContent: 'center', alignItems: 'center',
+                    }}>
+                      <Ionicons
+                        name={isPlaying ? 'pause' : 'play'}
+                        size={22} color="#fff"
+                        style={{ marginLeft: isPlaying ? 0 : 2 }}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
             </Animated.View>
           );
         })}
       </View>
 
-      {/* Track info */}
-      <Animated.View style={[{ paddingHorizontal: 28, marginTop: 16 }, { transform: [{ translateX: slideAnim }] }]}>
-        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '900', letterSpacing: -0.3, textAlign: 'center' }} numberOfLines={1}>
+      {/* Track info + player */}
+      <Animated.View style={{ paddingHorizontal: 24, transform: [{ translateX: infoTranslate }] }}>
+        <Text style={{ color: '#fff', fontSize: 21, fontWeight: '900', textAlign: 'center', letterSpacing: -0.3 }} numberOfLines={1}>
           {beat.titulo}
         </Text>
-        <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, textAlign: 'center', marginTop: 4 }}>
+        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, textAlign: 'center', marginTop: 3 }}>
           @{beat.artista} · {beat.genero_musical || 'Beat'}
         </Text>
+
+        {/* Progress bar */}
+        {streamUri && (
+          <View style={{ marginTop: 14, paddingHorizontal: 4 }}>
+            <View style={{ height: 3, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}>
+              <View style={{ width: `${progress * 100}%`, height: 3, backgroundColor: GOLD, borderRadius: 2 }} />
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
+              <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{msToMin(audioStatus.currentTime || 0)}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 10 }}>{msToMin(audioStatus.duration || 0)}</Text>
+            </View>
+          </View>
+        )}
       </Animated.View>
 
       {/* Actions */}
-      <View style={{ paddingHorizontal: 20, marginTop: 20, gap: 14 }}>
+      <View style={{ paddingHorizontal: 20, marginTop: 16, gap: 12 }}>
         {/* Buy button */}
         <TouchableOpacity
           style={{
             flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-            backgroundColor: GOLD, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16,
+            backgroundColor: GOLD, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 15,
             shadowColor: GOLD, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
           }}
           onPress={() => router.push(`/checkout/${beat.id}` as any)}
@@ -813,68 +901,38 @@ function BeatCarousel() {
         </TouchableOpacity>
 
         {/* Icon actions */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 4 }}>
-          {/* Like */}
-          <TouchableOpacity
-            style={{ alignItems: 'center', gap: 4 }}
-            onPress={() => handleLike(beat)}
-          >
-            <Ionicons
-              name={liked[beat.id] ? 'heart' : 'heart-outline'}
-              size={28} color={liked[beat.id] ? GOLD : 'rgba(255,255,255,0.55)'}
-            />
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>
-              {formatCount(likeCounts[beat.id] || 0)}
-            </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 2 }}>
+          <TouchableOpacity style={{ alignItems: 'center', gap: 4 }} onPress={() => handleLike(beat)}>
+            <Ionicons name={liked[beat.id] ? 'heart' : 'heart-outline'} size={26} color={liked[beat.id] ? GOLD : 'rgba(255,255,255,0.5)'} />
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700' }}>{formatCount(likeCounts[beat.id] || 0)}</Text>
           </TouchableOpacity>
 
-          {/* Comments */}
-          <TouchableOpacity
-            style={{ alignItems: 'center', gap: 4 }}
-            onPress={() => router.push(`/checkout/${beat.id}` as any)}
-          >
-            <Ionicons name="chatbubble-outline" size={26} color="rgba(255,255,255,0.55)" />
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>
-              {formatCount(beat.comments_count || 0)}
-            </Text>
+          <TouchableOpacity style={{ alignItems: 'center', gap: 4 }} onPress={togglePlay}>
+            <Ionicons name={isPlaying ? 'pause-circle-outline' : 'play-circle-outline'} size={26} color={GOLD} />
+            <Text style={{ color: GOLD, fontSize: 10, fontWeight: '700' }}>{isPlaying ? 'Pausar' : 'Reproducir'}</Text>
           </TouchableOpacity>
 
-          {/* Share */}
-          <TouchableOpacity
-            style={{ alignItems: 'center', gap: 4 }}
-            onPress={async () => {
-              try {
-                await Share.share({
-                  message: `Escucha "${beat.titulo}" de @${beat.artista} en Musicdy!`,
-                });
-              } catch {}
-            }}
-          >
-            <Ionicons name="share-social-outline" size={26} color="rgba(255,255,255,0.55)" />
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>Compartir</Text>
+          <TouchableOpacity style={{ alignItems: 'center', gap: 4 }} onPress={async () => {
+            try { await Share.share({ message: `Escucha "${beat.titulo}" de @${beat.artista} en Musicdy!` }); } catch {}
+          }}>
+            <Ionicons name="share-social-outline" size={26} color="rgba(255,255,255,0.5)" />
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700' }}>Compartir</Text>
           </TouchableOpacity>
 
-          {/* Download */}
-          <TouchableOpacity
-            style={{ alignItems: 'center', gap: 4 }}
-            onPress={() => router.push({ pathname: `/download/${beat.id}`, params: { postData: JSON.stringify(beat) } } as any)}
-          >
-            <Ionicons name="download-outline" size={26} color="rgba(255,255,255,0.55)" />
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>Descargar</Text>
+          <TouchableOpacity style={{ alignItems: 'center', gap: 4 }}
+            onPress={() => router.push({ pathname: `/download/${beat.id}`, params: { postData: JSON.stringify(beat) } } as any)}>
+            <Ionicons name="download-outline" size={26} color="rgba(255,255,255,0.5)" />
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700' }}>Descargar</Text>
           </TouchableOpacity>
 
-          {/* Options */}
-          <TouchableOpacity
-            style={{ alignItems: 'center', gap: 4 }}
-            onPress={() => setShowOptions(true)}
-          >
-            <Ionicons name="ellipsis-horizontal" size={26} color="rgba(255,255,255,0.55)" />
-            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>Más</Text>
+          <TouchableOpacity style={{ alignItems: 'center', gap: 4 }} onPress={() => setShowOptions(true)}>
+            <Ionicons name="ellipsis-horizontal" size={26} color="rgba(255,255,255,0.5)" />
+            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: '700' }}>Más</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      <View style={{ height: 24 }} />
+      <View style={{ height: 20 }} />
 
       {/* Options modal */}
       <Modal visible={showOptions} transparent animationType="slide" onRequestClose={() => setShowOptions(false)}>
