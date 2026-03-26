@@ -24,35 +24,43 @@ class SearchService:
     @classmethod
     def index_post(cls, post: Publicacion):
         """Index or update a post in Meilisearch."""
-        if post.is_private or post.visibilidad != "public":
-            cls._posts_index.delete_document(str(post.id))
-            return
+        try:
+            if post.is_private or post.visibilidad != "public":
+                cls._posts_index.delete_document(str(post.id))
+                return
 
-        # Prepare tags for search (join list into string or just index as is if Meili supports it)
-        tags_str = " ".join(post.tags) if post.tags and isinstance(post.tags, list) else ""
+            # Prepare tags for search (join list into string or just index as is if Meili supports it)
+            tags_str = " ".join(post.tags) if post.tags and isinstance(post.tags, list) else ""
 
-        data = {
-            "id": post.id,
-            "titulo": post.titulo or "",
-            "subtitulo": post.subtitulo or "",
-            "descripcion": post.descripcion or "",
-            "usuario_id": post.usuario_id,
-            "tipo_contenido": post.tipo_contenido,
-            "genero_musical": post.genero_musical,
-            "subgenero": post.subgenero,
-            "bpm": post.bpm,
-            "escala": post.escala,
-            "hashtags": post.hashtags,
-            "tags": tags_str,
-            "fecha_subida": int(post.fecha_subida.timestamp()) if post.fecha_subida else 0,
-            "likes_count": post.likes_count,
-            "plays": post.plays
-        }
-        cls._posts_index.add_documents([data])
+            data = {
+                "id": post.id,
+                "titulo": post.titulo or "",
+                "subtitulo": post.subtitulo or "",
+                "descripcion": post.descripcion or "",
+                "usuario_id": post.usuario_id,
+                "tipo_contenido": post.tipo_contenido,
+                "genero_musical": post.genero_musical,
+                "subgenero": post.subgenero,
+                "bpm": post.bpm,
+                "escala": post.escala,
+                "hashtags": post.hashtags,
+                "tags": tags_str,
+                "fecha_subida": int(post.fecha_subida.timestamp()) if post.fecha_subida else 0,
+                "likes_count": post.likes_count,
+                "plays": post.plays
+            }
+            cls._posts_index.add_documents([data])
+        except Exception as e:
+            import logging
+            logging.error(f"Meilisearch indexing error (post): {e}")
 
     @classmethod
     def delete_post(cls, post_id: int):
-        cls._posts_index.delete_document(str(post_id))
+        try:
+            cls._posts_index.delete_document(str(post_id))
+        except Exception as e:
+            import logging
+            logging.error(f"Meilisearch delete error (post): {e}")
 
     @classmethod
     def search_posts(cls, query: str, filters: str = None, limit: int = 20, offset: int = 0):
@@ -67,17 +75,21 @@ class SearchService:
 
     @classmethod
     def index_user(cls, user: Usuario):
-        data = {
-            "id": user.id,
-            "username": user.username,
-            "nombre_artistico": user.nombre_artistico,
-            "bio": user.bio,
-            "tipo_usuario": user.tipo_usuario,
-            "followers_count": user.followers_count,
-            "is_verified": user.is_verified,
-            "country": user.country
-        }
-        cls._users_index.add_documents([data])
+        try:
+            data = {
+                "id": user.id,
+                "username": user.username,
+                "nombre_artistico": user.nombre_artistico,
+                "bio": user.bio,
+                "tipo_usuario": user.tipo_usuario,
+                "followers_count": user.followers_count,
+                "is_verified": user.is_verified,
+                "country": user.country
+            }
+            cls._users_index.add_documents([data])
+        except Exception as e:
+            import logging
+            logging.error(f"Meilisearch indexing error (user): {e}")
 
     @classmethod
     def search_users(cls, query: str, filters: str = None, limit: int = 20):
