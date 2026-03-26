@@ -598,6 +598,311 @@ function PostCard({
   );
 }
 
+// ─── Beat Carousel ───────────────────────────────────────────────────────
+interface BeatPost {
+  id: number;
+  titulo: string;
+  artista: string;
+  cover_url?: string;
+  genero_musical?: string;
+  precio?: number;
+  likes_count?: number;
+  comments_count?: number;
+  tipo_contenido?: string;
+  usuario_id?: number;
+}
+
+function BeatCarousel() {
+  const [beats, setBeats] = useState<BeatPost[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [liked, setLiked] = useState<Record<number, boolean>>({});
+  const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
+  const [showOptions, setShowOptions] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const ambientColor = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const { user } = useAuthStore();
+
+  // Pastel accent colors per-index
+  const ACCENTS = ['#ff6b6b','#f97316','#3b82f6','#FFD700','#ec4899','#10b981','#8b5cf6','#06b6d4'];
+
+  useEffect(() => {
+    const fetchBeats = async () => {
+      try {
+        const res = await apiClient.get<BeatPost[]>(`/posts/?skip=0&limit=30`);
+        const beatPosts = res.data.filter(p =>
+          p.tipo_contenido !== 'video' && p.tipo_contenido !== 'for_you'
+        );
+        setBeats(beatPosts.length ? beatPosts : res.data.slice(0, 20));
+        const counts: Record<number, number> = {};
+        beatPosts.forEach(b => { counts[b.id] = b.likes_count || 0; });
+        setLikeCounts(counts);
+      } catch {}
+      setLoading(false);
+    };
+    fetchBeats();
+  }, []);
+
+  const go = (dir: 1 | -1) => {
+    Animated.sequence([
+      Animated.timing(slideAnim, { toValue: -dir * 40, duration: 100, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start();
+    setCurrentIndex(i => (i + dir + beats.length) % beats.length);
+  };
+
+  const handleLike = async (beat: BeatPost) => {
+    const prev = liked[beat.id] || false;
+    setLiked(l => ({ ...l, [beat.id]: !prev }));
+    setLikeCounts(c => ({ ...c, [beat.id]: (c[beat.id] || 0) + (prev ? -1 : 1) }));
+    try {
+      const res = await apiClient.post(`/posts/${beat.id}/like`);
+      setLikeCounts(c => ({ ...c, [beat.id]: res.data.likes_count }));
+      setLiked(l => ({ ...l, [beat.id]: res.data.is_liked }));
+    } catch {
+      setLiked(l => ({ ...l, [beat.id]: prev }));
+      setLikeCounts(c => ({ ...c, [beat.id]: (c[beat.id] || 0) + (prev ? 1 : -1) }));
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={GOLD} size="large" />
+      </View>
+    );
+  }
+
+  if (!beats.length) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#050505', justifyContent: 'center', alignItems: 'center' }}>
+        <Ionicons name="musical-notes-outline" size={60} color="#333" />
+        <Text style={{ color: '#555', marginTop: 16, fontSize: 16 }}>No hay beats disponibles</Text>
+      </View>
+    );
+  }
+
+  const beat = beats[currentIndex];
+  const accent = ACCENTS[currentIndex % ACCENTS.length];
+  const coverUri = AppConfig.getFullMediaUrl(beat.cover_url) || null;
+
+  const getPos = (i: number) => {
+    let d = i - currentIndex;
+    const n = beats.length;
+    if (d > n / 2) d -= n;
+    if (d < -n / 2) d += n;
+    return Math.max(-3, Math.min(3, d));
+  };
+
+  const cardStyle = (pos: number) => {
+    const configs: Record<number, object> = {
+      0:  { translateX: 0,    translateZ: 80,  rotateY: '0deg',   scale: 1,    opacity: 1 },
+      1:  { translateX: 165,  translateZ: -40, rotateY: '-28deg', scale: 0.82, opacity: 0.65 },
+      2:  { translateX: 280,  translateZ: -120,rotateY: '-38deg', scale: 0.65, opacity: 0.35 },
+      '-1':{ translateX: -165, translateZ: -40, rotateY: '28deg',  scale: 0.82, opacity: 0.65 },
+      '-2':{ translateX: -280, translateZ: -120,rotateY: '38deg',  scale: 0.65, opacity: 0.35 },
+    };
+    return configs[pos] || { opacity: 0, scale: 0.4 };
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#050505' }}>
+      {/* Ambient glow */}
+      <View style={{
+        position: 'absolute', top: 80, left: '50%', marginLeft: -220,
+        width: 440, height: 440, borderRadius: 220,
+        backgroundColor: accent, opacity: 0.12, filter: undefined,
+      }} />
+
+      {/* Carousel area */}
+      <View
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', perspective: 1000 }}
+        {...(() => {
+          let swipeStart = 0;
+          return {
+            onStartShouldSetResponder: () => true,
+            onResponderGrant: (e: any) => { swipeStart = e.nativeEvent.pageX; },
+            onResponderRelease: (e: any) => {
+              const dx = e.nativeEvent.pageX - swipeStart;
+              if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+            },
+          };
+        })()}
+      >
+        {beats.map((b, i) => {
+          const pos = getPos(i);
+          if (Math.abs(pos) > 2) return null;
+          const cfg = cardStyle(pos) as any;
+          const bCover = AppConfig.getFullMediaUrl(b.cover_url) || null;
+          const isCenter = pos === 0;
+          return (
+            <Animated.View
+              key={b.id}
+              style={[{
+                position: 'absolute',
+                width: 240, height: 240, borderRadius: 20, overflow: 'hidden',
+                transform: [
+                  { translateX: cfg.translateX || 0 },
+                  { scale: cfg.scale || 1 },
+                ],
+                opacity: cfg.opacity || 0,
+                zIndex: 5 - Math.abs(pos),
+                shadowColor: isCenter ? accent : '#000',
+                shadowOffset: { width: 0, height: isCenter ? 20 : 5 },
+                shadowOpacity: isCenter ? 0.7 : 0.3,
+                shadowRadius: isCenter ? 30 : 8,
+                elevation: 5 - Math.abs(pos),
+              }]}
+            >
+              {bCover
+                ? <Image source={{ uri: bCover }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                : (
+                  <View style={{
+                    flex: 1, alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: '#111',
+                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+                  }}>
+                    <Ionicons name="musical-note" size={80} color={ACCENTS[i % ACCENTS.length]} />
+                    <Text style={{ color: '#fff', fontWeight: '900', fontSize: 16, marginTop: 8, textAlign: 'center', paddingHorizontal: 12 }} numberOfLines={2}>
+                      {b.titulo}
+                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 4 }}>
+                      {b.genero_musical?.toUpperCase()}
+                    </Text>
+                  </View>
+                )
+              }
+              {/* Glass overlay */}
+              <View style={{
+                ...StyleSheet.absoluteFillObject,
+                backgroundColor: 'rgba(255,255,255,0.04)',
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: isCenter ? `${accent}55` : 'rgba(255,255,255,0.06)',
+              }} />
+            </Animated.View>
+          );
+        })}
+      </View>
+
+      {/* Track info */}
+      <Animated.View style={[{ paddingHorizontal: 28, marginTop: 16 }, { transform: [{ translateX: slideAnim }] }]}>
+        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '900', letterSpacing: -0.3, textAlign: 'center' }} numberOfLines={1}>
+          {beat.titulo}
+        </Text>
+        <Text style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, textAlign: 'center', marginTop: 4 }}>
+          @{beat.artista} · {beat.genero_musical || 'Beat'}
+        </Text>
+      </Animated.View>
+
+      {/* Actions */}
+      <View style={{ paddingHorizontal: 20, marginTop: 20, gap: 14 }}>
+        {/* Buy button */}
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+            backgroundColor: GOLD, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16,
+            shadowColor: GOLD, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+          }}
+          onPress={() => router.push(`/checkout/${beat.id}` as any)}
+        >
+          <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>Comprar Beat</Text>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.15)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 }}>
+            <Text style={{ color: '#000', fontWeight: '900', fontSize: 13 }}>${beat.precio || 29}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Icon actions */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 4 }}>
+          {/* Like */}
+          <TouchableOpacity
+            style={{ alignItems: 'center', gap: 4 }}
+            onPress={() => handleLike(beat)}
+          >
+            <Ionicons
+              name={liked[beat.id] ? 'heart' : 'heart-outline'}
+              size={28} color={liked[beat.id] ? GOLD : 'rgba(255,255,255,0.55)'}
+            />
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>
+              {formatCount(likeCounts[beat.id] || 0)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Comments */}
+          <TouchableOpacity
+            style={{ alignItems: 'center', gap: 4 }}
+            onPress={() => router.push(`/checkout/${beat.id}` as any)}
+          >
+            <Ionicons name="chatbubble-outline" size={26} color="rgba(255,255,255,0.55)" />
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>
+              {formatCount(beat.comments_count || 0)}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Share */}
+          <TouchableOpacity
+            style={{ alignItems: 'center', gap: 4 }}
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: `Escucha "${beat.titulo}" de @${beat.artista} en Musicdy!`,
+                });
+              } catch {}
+            }}
+          >
+            <Ionicons name="share-social-outline" size={26} color="rgba(255,255,255,0.55)" />
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>Compartir</Text>
+          </TouchableOpacity>
+
+          {/* Download */}
+          <TouchableOpacity
+            style={{ alignItems: 'center', gap: 4 }}
+            onPress={() => router.push({ pathname: `/download/${beat.id}`, params: { postData: JSON.stringify(beat) } } as any)}
+          >
+            <Ionicons name="download-outline" size={26} color="rgba(255,255,255,0.55)" />
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>Descargar</Text>
+          </TouchableOpacity>
+
+          {/* Options */}
+          <TouchableOpacity
+            style={{ alignItems: 'center', gap: 4 }}
+            onPress={() => setShowOptions(true)}
+          >
+            <Ionicons name="ellipsis-horizontal" size={26} color="rgba(255,255,255,0.55)" />
+            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '700' }}>Más</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={{ height: 24 }} />
+
+      {/* Options modal */}
+      <Modal visible={showOptions} transparent animationType="slide" onRequestClose={() => setShowOptions(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }} onPress={() => setShowOptions(false)}>
+          <View style={{ backgroundColor: '#1a1a1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingBottom: 36 }}>
+            <View style={{ width: 36, height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
+            {[
+              { icon: 'bookmark-outline', label: 'Guardar en colección' },
+              { icon: 'person-outline', label: 'Ver perfil del productor', action: () => router.push(`/profile/${beat.artista}` as any) },
+              { icon: 'musical-notes-outline', label: 'Ver todos los beats' },
+              { icon: 'ban-outline', label: 'Reportar contenido', danger: true },
+            ].map(opt => (
+              <TouchableOpacity
+                key={opt.label}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 24, paddingVertical: 14 }}
+                onPress={() => { setShowOptions(false); opt.action?.(); }}
+              >
+                <Ionicons name={opt.icon as any} size={20} color={(opt as any).danger ? '#EF476F' : 'rgba(255,255,255,0.6)'} />
+                <Text style={{ color: (opt as any).danger ? '#EF476F' : 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: '500' }}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
 // ─── Main Screen ─────────────────────────────────────────────────────────
 export default function FeedScreen() {
   const { user, logout } = useAuthStore();
@@ -605,6 +910,7 @@ export default function FeedScreen() {
   const { startPostId } = useLocalSearchParams<{ startPostId: string }>();
   const listRef = useRef<FlatList>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [mainTab, setMainTab] = useState<'beats' | 'content'>('beats');
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
   const [refreshing, setRefreshing] = useState(false);
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 60 });
@@ -763,14 +1069,15 @@ export default function FeedScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
+      {/* Top header with main tab switcher */}
       <View style={styles.topHeader} pointerEvents="box-none">
         <Text style={styles.appLogo}>musicdy</Text>
         <View style={styles.headerTabs}>
-          <TouchableOpacity onPress={() => switchTab('foryou')}>
-            <Text style={[styles.headerTab, activeTab === 'foryou' && styles.headerTabActive]}>Para Ti</Text>
+          <TouchableOpacity onPress={() => setMainTab('beats')}>
+            <Text style={[styles.headerTab, mainTab === 'beats' && styles.headerTabActive]}>🎹 Beats</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => switchTab('following')}>
-            <Text style={[styles.headerTab, activeTab === 'following' && styles.headerTabActive]}>Siguiendo</Text>
+          <TouchableOpacity onPress={() => setMainTab('content')}>
+            <Text style={[styles.headerTab, mainTab === 'content' && styles.headerTabActive]}>Para Ti</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={logout}>
@@ -778,34 +1085,58 @@ export default function FeedScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        ref={listRef}
-        data={posts}
-        keyExtractor={(item) => item.id.toString()}
-        getItemLayout={(_, index) => ({ length: SCREEN_HEIGHT, offset: SCREEN_HEIGHT * index, index })}
-        renderItem={({ item, index }) => (
-          <PostCard item={item} isVisible={index === activeIndex}
-            currentUserId={user?.id} onDelete={handleDeletePost} />
-        )}
-        pagingEnabled
-        snapToInterval={SCREEN_HEIGHT}
-        snapToAlignment="start"
-        decelerationRate="fast"
-        showsVerticalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig.current}
-        onEndReached={onEndReached}
-        onEndReachedThreshold={2}
-        onRefresh={onRefresh}
-        refreshing={refreshing}
-        ListFooterComponent={
-          (fetchingMoreForYou || fetchingMoreFollowing) ? (
-            <View style={{ height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-              <ActivityIndicator color={GOLD} />
+      {/* Beat Carousel Tab */}
+      {mainTab === 'beats' && (
+        <View style={{ flex: 1, paddingTop: 100 }}>
+          <BeatCarousel />
+        </View>
+      )}
+
+      {/* TikTok Feed Tab */}
+      {mainTab === 'content' && (
+        <>
+          {/* Secondary sub-tabs: Para Ti / Siguiendo */}
+          <View style={[styles.topHeader, { top: 90, paddingTop: 0, paddingBottom: 0, justifyContent: 'center' }]} pointerEvents="box-none">
+            <View style={styles.headerTabs}>
+              <TouchableOpacity onPress={() => switchTab('foryou')}>
+                <Text style={[styles.headerTab, activeTab === 'foryou' && styles.headerTabActive]}>Para Ti</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => switchTab('following')}>
+                <Text style={[styles.headerTab, activeTab === 'following' && styles.headerTabActive]}>Siguiendo</Text>
+              </TouchableOpacity>
             </View>
-          ) : null
-        }
-      />
+          </View>
+
+          <FlatList
+            ref={listRef}
+            data={posts}
+            keyExtractor={(item) => item.id.toString()}
+            getItemLayout={(_, index) => ({ length: SCREEN_HEIGHT, offset: SCREEN_HEIGHT * index, index })}
+            renderItem={({ item, index }) => (
+              <PostCard item={item} isVisible={index === activeIndex}
+                currentUserId={user?.id} onDelete={handleDeletePost} />
+            )}
+            pagingEnabled
+            snapToInterval={SCREEN_HEIGHT}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+            onViewableItemsChanged={onViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig.current}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={2}
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            ListFooterComponent={
+              (fetchingMoreForYou || fetchingMoreFollowing) ? (
+                <View style={{ height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+                  <ActivityIndicator color={GOLD} />
+                </View>
+              ) : null
+            }
+          />
+        </>
+      )}
     </View>
   );
 }
