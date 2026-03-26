@@ -629,6 +629,8 @@ function BeatCarousel() {
   const infoTranslate = useRef(new Animated.Value(0)).current;
   const discRotate    = useRef(new Animated.Value(0)).current;
   const discAnimRef   = useRef<Animated.CompositeAnimation | null>(null);
+  // Swipe tracking
+  const swipeRef = useRef({ startX: 0, startY: 0, locked: false });
 
   const ACCENTS = ['#ff6b6b','#f97316','#3b82f6','#FFD700','#ec4899','#10b981','#8b5cf6','#06b6d4'];
 
@@ -771,13 +773,25 @@ function BeatCarousel() {
   const progress = audioStatus.duration ? audioStatus.currentTime / audioStatus.duration : 0;
 
   // ── Swipe tracking ────────────────────────────────────────────────────
-  let swipeStartX = 0;
   const swipeHandlers = {
-    onStartShouldSetResponder: () => true,
-    onResponderGrant: (e: any) => { swipeStartX = e.nativeEvent.pageX; },
+    // Record start on any touch (without claiming responder yet)
+    onStartShouldSetResponder: (e: any) => {
+      swipeRef.current.startX = e.nativeEvent.pageX;
+      swipeRef.current.startY = e.nativeEvent.pageY;
+      return false; // don't steal touch from children on tap
+    },
+    // Claim responder only when clearly swiping horizontally
+    onMoveShouldSetResponder: (e: any) => {
+      const dx = Math.abs(e.nativeEvent.pageX - swipeRef.current.startX);
+      const dy = Math.abs(e.nativeEvent.pageY - swipeRef.current.startY);
+      return dx > 8 && dx > dy * 1.5;
+    },
+    onResponderGrant: (e: any) => {
+      swipeRef.current.startX = e.nativeEvent.pageX;
+    },
     onResponderRelease: (e: any) => {
-      const dx = e.nativeEvent.pageX - swipeStartX;
-      if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+      const dx = e.nativeEvent.pageX - swipeRef.current.startX;
+      if (Math.abs(dx) > 35) go(dx < 0 ? 1 : -1);
     },
   };
 
