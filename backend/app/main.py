@@ -18,9 +18,18 @@ import os
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal, engine
 from app.db.base_class import Base
+# Import all models to ensure metadata captures all tables
+from app.models import models
 
-# Force SQLAlchemy to create missing tables and columns if DB is empty
-Base.metadata.create_all(bind=engine)
+# Automatic DB Wipe/Reset logic (Triggered via Render Environment Variables)
+if os.environ.get("FORCE_RESET_DB") == "true":
+    print("WARNING: FORCE_RESET_DB=true detected. Wiping all database tables...")
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    print("Database reset complete. Please REMOVE the FORCE_RESET_DB variable from Render settings.")
+else:
+    # Just ensure missing tables are created normally
+    Base.metadata.create_all(bind=engine)
 
 # Montar archivos estáticos
 os.makedirs("static", exist_ok=True)
@@ -50,14 +59,16 @@ def health_check():
     Endpoint for Render/Railway Health Checks.
     Returns 200 OK only if the server and DB are operational.
     """
+    from sqlalchemy import text
     try:
         db: Session = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         db_status = "operational"
     except Exception as e:
         db_status = f"error: {str(e)}"
     return {"status": "ok", "db": db_status}
+
 
 if __name__ == "__main__":
     import uvicorn

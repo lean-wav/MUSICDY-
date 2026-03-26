@@ -73,6 +73,10 @@ class Usuario(Base):
     account_status = Column(String, default="active")
     tipo_usuario = Column(String, default="Oyente")
 
+    # OTP Verification
+    otp_code = Column(String, nullable=True)
+    otp_expires_at = Column(DateTime, nullable=True)
+
     settings = Column(JSON, default={
         "privacy": {
             "find_by_email": True, "find_by_phone": True,

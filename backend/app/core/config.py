@@ -40,9 +40,12 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: Optional[str] = "redis://localhost:6379/0"
 
-    # SMTP Correo
-    SMTP_USER: Optional[str] = None
+    # SMTP Correo (Hostinger)
+    SMTP_HOST: str = "smtp.hostinger.com"
+    SMTP_PORT: int = 465
+    SMTP_USER: Optional[str] = None        # no-reply@musicdy.com
     SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM_NAME: str = "Musicdy"
 
     MERCADOPAGO_ACCESS_TOKEN: Optional[str] = None
     MERCADOPAGO_PUBLIC_KEY: Optional[str] = None

@@ -20,62 +20,167 @@ from pydantic import BaseModel, constr
 router = APIRouter()
 
 
-@router.post("/", response_model=user_schemas.User)
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+
+class OTPVerify(BaseModel):
+    email: str
+    otp_code: str
+
+
+class ResendOTP(BaseModel):
+    email: str
+
+
+@router.post("/", status_code=200)
 def create_user(
     *,
     db: Session = Depends(deps.get_db),
+    background_tasks: BackgroundTasks,
     user_in: user_schemas.UserCreate
 ) -> Any:
     """
-    Create new user.
+    Register a new user. Sends a 6-digit OTP to the provided email.
+    User must verify OTP before accessing the app.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     try:
         if db.query(Usuario).filter(Usuario.email == user_in.email).first():
-            raise HTTPException(
-                status_code=400,
-                detail="The user with this username already exists in the system.",
-            )
+            raise HTTPException(status_code=400, detail="El correo ya está registrado.")
         if db.query(Usuario).filter(Usuario.username == user_in.username).first():
-            raise HTTPException(
-                status_code=400,
-                detail="The username is already in use.",
-            )
-        
-        hashed_password = security.get_password_hash(user_in.password)
-        
+            raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso.")
+
+        from app.utils.email import generate_otp, send_otp_email
+
+        otp = generate_otp(6)
+        otp_expires = datetime.utcnow() + timedelta(minutes=10)
+
         db_user = Usuario(
             username=user_in.username,
             email=user_in.email,
-            password_hash=hashed_password,
+            password_hash=security.get_password_hash(user_in.password),
             foto_perfil="default.jpg",
             bio="",
-            tipo_usuario=user_in.tipo_usuario,
-            provider=user_in.provider,
+            tipo_usuario=user_in.tipo_usuario or "General",
+            provider=user_in.provider or "email",
             provider_id=user_in.provider_id,
-            birthdate=user_in.birthdate,
-            is_verified=True, # Simplified: everyone is verified by default to fix the 500 email error
-            account_status="active"
+            is_verified=False,
+            account_status="pending_verification",
+            otp_code=otp,
+            otp_expires_at=otp_expires,
         )
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
 
-        # Triggers email verification removed to simplify and avoid server crashing on missing SMTP
+        # Send OTP email in background (never blocks the response)
+        background_tasks.add_task(send_otp_email, user_in.email, otp, user_in.username)
 
-        return db_user
+        return {"status": "otp_sent", "email": user_in.email}
+
     except HTTPException:
-        # Re-raise standard HTTP exceptions
         raise
     except Exception as e:
-        logger.error(f"Error 500 in create_user: {str(e)}", exc_info=True)
+        logger.error(f"Error in create_user: {str(e)}", exc_info=True)
         db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Error interno del servidor al crear cuenta."
-        )
+        raise HTTPException(status_code=500, detail="Error interno al crear la cuenta. Intentá de nuevo.")
+
+
+@router.post("/verify-otp")
+def verify_otp(
+    *,
+    db: Session = Depends(deps.get_db),
+    data: OTPVerify,
+) -> Any:
+    """
+    Verify a 6-digit OTP code and complete account activation.
+    Returns a JWT access token on success.
+    """
+    import uuid
+    user = db.query(Usuario).filter(Usuario.email == data.email).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Correo no encontrado.")
+
+    if user.is_verified:
+        raise HTTPException(status_code=400, detail="La cuenta ya está verificada.")
+
+    if not user.otp_code or user.otp_code != data.otp_code:
+        raise HTTPException(status_code=400, detail="Código incorrecto. Verificá y volvé a intentar.")
+
+    if not user.otp_expires_at or datetime.utcnow() > user.otp_expires_at:
+        raise HTTPException(status_code=400, detail="El código expiró. Pedí uno nuevo.")
+
+    # Activate account
+    user.is_verified = True
+    user.account_status = "active"
+    user.otp_code = None
+    user.otp_expires_at = None
+
+    # Create a session + JWT
+    jti = str(uuid.uuid4())
+    new_session = SesionUsuario(
+        usuario_id=user.id,
+        token_jti=jti,
+        device_name="Verified via OTP",
+        is_active=True
+    )
+    db.add(new_session)
+    db.commit()
+    db.refresh(user)
+
+    access_token = security.create_access_token(
+        user.id,
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        jti=jti
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "foto_perfil": user.foto_perfil,
+            "tipo_usuario": user.tipo_usuario,
+        }
+    }
+
+
+@router.post("/resend-otp")
+def resend_otp(
+    *,
+    db: Session = Depends(deps.get_db),
+    background_tasks: BackgroundTasks,
+    data: ResendOTP,
+) -> Any:
+    """
+    Re-generate and resend OTP code to the given email.
+    """
+    from app.utils.email import generate_otp, send_otp_email
+
+    user = db.query(Usuario).filter(Usuario.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Correo no encontrado.")
+    if user.is_verified:
+        raise HTTPException(status_code=400, detail="La cuenta ya está verificada.")
+
+    # Rate-limit: allow resend only if previous OTP sent more than 1 min ago
+    if user.otp_expires_at:
+        time_remaining = (user.otp_expires_at - datetime.utcnow()).total_seconds()
+        if time_remaining > 540:  # 9 min remaining means OTP is less than 1 min old
+            raise HTTPException(status_code=429, detail="Esperá 1 minuto antes de pedir otro código.")
+
+    otp = generate_otp(6)
+    user.otp_code = otp
+    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    db.commit()
+
+    background_tasks.add_task(send_otp_email, data.email, otp, user.username)
+    return {"status": "otp_sent", "email": data.email}
+
 
 @router.get("/verify-email", response_class=HTMLResponse)
 def verify_email(token: str, db: Session = Depends(deps.get_db)) -> Any:
