@@ -16,7 +16,11 @@ app = FastAPI(
 
 import os
 from sqlalchemy.orm import Session
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, engine
+from app.db.base_class import Base
+
+# Force SQLAlchemy to create missing tables and columns if DB is empty
+Base.metadata.create_all(bind=engine)
 
 # Montar archivos estáticos
 os.makedirs("static", exist_ok=True)
